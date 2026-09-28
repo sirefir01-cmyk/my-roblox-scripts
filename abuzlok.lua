@@ -1,6 +1,5 @@
 --// ============================================================
---//  🌙 abuzlok VD — Moonwalk Edition
---//  ESP + Fly + Noclip + Teleport + Visual + World + Moonwalk
+--//  🌙 abuzlok VD — Moonwalk V2
 --//  LocalScript в StarterPlayerScripts
 --// ============================================================
 
@@ -33,10 +32,12 @@ local Config = {
     Fullbright=false,
     Bloom=false, SunRays=false, ColorCorr=false, DoF=false,
     AntiAFK=true,
-    -- Moonwalk
+    -- Moonwalk V2
     AutoMoonwalk=false,
-    MoonwalkSpeed=0.05,   -- скорость переключения (сек)
-    MoonwalkHold=0.03,    -- длительность нажатия (сек)
+    MoonwalkSpeed=0.02,       -- полный цикл A/D (сек)
+    MoonwalkHold=0.02,        -- удержание клавиши (сек)
+    MoonwalkWadMode=false,    -- W-A-D pattern (как ты показал)
+    MoonwalkDebug=false,      -- показать счётчик
     Keybinds={Fly=Enum.KeyCode.F, NoClip=Enum.KeyCode.N, ToggleMenu=Enum.KeyCode.L, HideUI=Enum.KeyCode.RightBracket, Moonwalk=Enum.KeyCode.M},
     DefaultBinds={Fly=Enum.KeyCode.F, NoClip=Enum.KeyCode.N, ToggleMenu=Enum.KeyCode.L, HideUI=Enum.KeyCode.RightBracket, Moonwalk=Enum.KeyCode.M},
 }
@@ -103,43 +104,91 @@ local function StopFly()
 end
 
 --// ============================================================
---//  MOONWALK
+--//  🌙 MOONWALK V2
 --// ============================================================
 local moonwalkActive = false
 local moonwalkThread = nil
+local moonwalkCounter = 0
+local lastMoonKey = nil
 
--- Универсальная отправка нажатия клавиши
-local function sendKey(key, state)
-    -- Основной метод — VirtualInputManager
-    pcall(function()
-        local VIM = game:GetService("VirtualInputManager")
-        VIM:SendKeyEvent(state, key, false, game)
-    end)
-    -- Fallback для executor'ов с keypress/keyrelease
-    pcall(function()
-        if state then
-            if keypress then keypress(key) end
-        else
-            if keyrelease then keyrelease(key) end
-        end
-    end)
+-- Универсальная отправка клавиш — 3 метода
+local VIM
+pcall(function() VIM = game:GetService("VirtualInputManager") end)
+
+local function pressKey(keyCode, keyName)
+    -- Метод 1: VirtualInputManager
+    if VIM then
+        local ok = pcall(function()
+            VIM:SendKeyEvent(true, keyCode, false, game)
+        end)
+        if ok then return true end
+    end
+    -- Метод 2: executor keypress (lowercase string)
+    if keypress then
+        local ok = pcall(function() keypress(keyName) end)
+        if ok then return true end
+    end
+    -- Метод 3: попробовать Enum напрямую в keypress
+    if keypress then
+        local ok = pcall(function() keypress(keyCode) end)
+        if ok then return true end
+    end
+    return false
+end
+
+local function releaseKey(keyCode, keyName)
+    if VIM then
+        local ok = pcall(function()
+            VIM:SendKeyEvent(false, keyCode, false, game)
+        end)
+        if ok then return true end
+    end
+    if keyrelease then
+        local ok = pcall(function() keyrelease(keyName) end)
+        if ok then return true end
+    end
+    if keyrelease then
+        local ok = pcall(function() keyrelease(keyCode) end)
+        if ok then return true end
+    end
+    return false
+end
+
+local function tapKey(keyCode, keyName, holdTime)
+    pressKey(keyCode, keyName)
+    task.wait(holdTime or 0.015)
+    releaseKey(keyCode, keyName)
 end
 
 local function startMoonwalk()
     if moonwalkThread then return end
     moonwalkActive = true
+    moonwalkCounter = 0
     moonwalkThread = task.spawn(function()
-        local toggle = false
+        local tick_a = false
         while moonwalkActive do
             if Config.AutoMoonwalk and UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                toggle = not toggle
-                local k = toggle and Enum.KeyCode.A or Enum.KeyCode.D
-                sendKey(k, true)
-                task.wait(Config.MoonwalkHold)
-                sendKey(k, false)
-                task.wait(math.max(0, Config.MoonwalkSpeed - Config.MoonwalkHold))
+                if Config.MoonwalkWadMode then
+                    -- W-A-D pattern (как ты показал)
+                    tapKey(Enum.KeyCode.W, "w", Config.MoonwalkHold)
+                    task.wait(Config.MoonwalkSpeed)
+                    tapKey(Enum.KeyCode.A, "a", Config.MoonwalkHold)
+                    task.wait(Config.MoonwalkSpeed)
+                    tapKey(Enum.KeyCode.D, "d", Config.MoonwalkHold)
+                    task.wait(Config.MoonwalkSpeed)
+                else
+                    -- Классика: A/D alternate
+                    tick_a = not tick_a
+                    if tick_a then
+                        tapKey(Enum.KeyCode.A, "a", Config.MoonwalkHold)
+                    else
+                        tapKey(Enum.KeyCode.D, "d", Config.MoonwalkHold)
+                    end
+                    task.wait(math.max(0, Config.MoonwalkSpeed - Config.MoonwalkHold))
+                end
+                moonwalkCounter = moonwalkCounter + 1
             else
-                task.wait(0.03)
+                task.wait(0.02)
             end
         end
     end)
@@ -151,6 +200,10 @@ local function stopMoonwalk()
         pcall(function() task.cancel(moonwalkThread) end)
         moonwalkThread = nil
     end
+    -- Отпускаем все возможные клавиши
+    pcall(function() releaseKey(Enum.KeyCode.W, "w") end)
+    pcall(function() releaseKey(Enum.KeyCode.A, "a") end)
+    pcall(function() releaseKey(Enum.KeyCode.D, "d") end)
 end
 
 --// Anti-AFK
@@ -190,7 +243,6 @@ local function UpdateEffects()
     setEffect("ABZ_DoF", "DepthOfFieldEffect", Config.DoF and on, {FarIntensity=0.15, FocusDistance=20, InFocusRadius=40})
 end
 
---// Lighting
 local LightingTween
 local function tweenLighting(prop, target, time)
     if LightingTween then pcall(function() LightingTween:Cancel() end) end
@@ -199,7 +251,6 @@ local function tweenLighting(prop, target, time)
         {[prop] = target})
     LightingTween:Play()
 end
-
 local function ApplyLighting()
     UpdateEffects()
     safe(function() tweenLighting("Ambient", Config.Ambient, 1.5) end)
@@ -213,7 +264,6 @@ local function ApplyLighting()
         end)
     end
 end
-
 local function ResetLighting()
     if LightingTween then pcall(function() LightingTween:Cancel() end); LightingTween=nil end
     safe(function()
@@ -249,7 +299,7 @@ ScreenGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset=true; ScreenGui.DisplayOrder=999999
 ScreenGui.Parent = getGuiParent()
 
---// Watermark
+-- Watermark
 local Watermark = Instance.new("Frame")
 Watermark.Size=UDim2.new(0,240,0,26); Watermark.Position=UDim2.new(0,10,0,10)
 Watermark.BackgroundColor3=COL.bg; Watermark.BackgroundTransparency=0.15
@@ -261,9 +311,9 @@ wmLabel.Text="🌙 abuzlok VD  |  "..LocalPlayer.Name
 wmLabel.TextColor3=COL.accentSoft; wmLabel.Font=Enum.Font.GothamBold
 wmLabel.TextSize=11; wmLabel.Parent=Watermark
 
---// Moonwalk indicator
+-- Moonwalk indicator
 local MoonIndicator = Instance.new("Frame")
-MoonIndicator.Size=UDim2.new(0,120,0,22); MoonIndicator.Position=UDim2.new(0,10,0,40)
+MoonIndicator.Size=UDim2.new(0,180,0,22); MoonIndicator.Position=UDim2.new(0,10,0,40)
 MoonIndicator.BackgroundColor3=COL.bg; MoonIndicator.BackgroundTransparency=0.3
 MoonIndicator.BorderSizePixel=0; MoonIndicator.Visible=false; MoonIndicator.Parent=ScreenGui
 corner(MoonIndicator,4)
@@ -274,7 +324,7 @@ miLabel.Text="🌙 MOONWALK ACTIVE"
 miLabel.TextColor3=COL.moon; miLabel.Font=Enum.Font.GothamBold
 miLabel.TextSize=10; miLabel.Parent=MoonIndicator
 
---// Crosshair
+-- Crosshair
 local Crosshair = Instance.new("Frame")
 Crosshair.Size=UDim2.new(0,20,0,20); Crosshair.Position=UDim2.new(0.5,-10,0.5,-10)
 Crosshair.BackgroundTransparency=1; Crosshair.Parent=ScreenGui
@@ -288,7 +338,7 @@ local chDot = Instance.new("Frame")
 chDot.Size=UDim2.new(0,2,0,2); chDot.Position=UDim2.new(0.5,-1,0.5,-1)
 chDot.BackgroundColor3=Config.CrosshairColor; chDot.BorderSizePixel=0; chDot.Parent=Crosshair
 
---// Toggle button
+-- Toggle button
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size=UDim2.new(0,140,0,36); ToggleBtn.Position=UDim2.new(0.5,-70,0,14)
 ToggleBtn.BackgroundColor3=COL.bg; ToggleBtn.Text="🌙 abuzlok VD [L]"
@@ -296,7 +346,7 @@ ToggleBtn.TextColor3=COL.accentSoft; ToggleBtn.Font=Enum.Font.GothamBold
 ToggleBtn.TextSize=12; ToggleBtn.AutoButtonColor=false; ToggleBtn.Parent=ScreenGui; corner(ToggleBtn,10)
 local tbStroke=Instance.new("UIStroke",ToggleBtn); tbStroke.Color=COL.accent; tbStroke.Thickness=1.5
 
---// Menu
+-- Menu
 local Menu = Instance.new("Frame")
 Menu.Size=UDim2.new(0,320,0,480); Menu.Position=UDim2.new(0.5,-160,0,62)
 Menu.BackgroundColor3=COL.bg; Menu.BorderSizePixel=0
@@ -325,7 +375,7 @@ CloseBtn.BackgroundColor3=Color3.fromRGB(255,90,90); CloseBtn.Text="×"
 CloseBtn.TextColor3=Color3.fromRGB(255,255,255); CloseBtn.Font=Enum.Font.GothamBold
 CloseBtn.TextSize=17; CloseBtn.AutoButtonColor=false; CloseBtn.ZIndex=4; CloseBtn.Parent=Header; corner(CloseBtn,12)
 
---// Tabs
+-- Tabs
 local TabBar=Instance.new("Frame")
 TabBar.Size=UDim2.new(1,-20,0,32); TabBar.Position=UDim2.new(0,10,0,52)
 TabBar.BackgroundColor3=COL.bgRow; TabBar.BorderSizePixel=0; TabBar.Parent=Menu; corner(TabBar,9)
@@ -359,7 +409,7 @@ PageHolder.Size=UDim2.new(1,0,0,0); PageHolder.BackgroundTransparency=1
 PageHolder.AutomaticSize = Enum.AutomaticSize.Y
 PageHolder.Parent = MainScroll
 
---// Components
+-- Components
 local componentY = 4
 local function resetY() componentY = 4 end
 local function nextY(o) componentY = componentY + (o or 0); return componentY end
@@ -590,9 +640,10 @@ local function buildMovePage()
     end)
 end
 
---// MOONWALK PAGE
+-- MOONWALK PAGE
+local moonDebugLbl
 local function buildMoonPage()
-    makeSection("🌙 Moonwalk")
+    makeSection("🌙 Moonwalk V2")
     makeSwitch("Auto Moonwalk (M)","AutoMoonwalk",function(on)
         if on then
             startMoonwalk()
@@ -600,30 +651,37 @@ local function buildMoonPage()
         else
             stopMoonwalk()
             MoonIndicator.Visible = false
-            -- Отпустим возможные зажатые клавиши
-            sendKey(Enum.KeyCode.A, false)
-            sendKey(Enum.KeyCode.D, false)
+        end
+    end)
+    makeSwitch("W-A-D Pattern","MoonwalkWadMode",function(on)
+        if Config.AutoMoonwalk then
+            stopMoonwalk()
+            task.wait(0.05)
+            startMoonwalk()
         end
     end)
     makeSection("Настройки скорости")
-    makeSlider("Скорость перекл. (сек)",0.02,0.30,Config.MoonwalkSpeed,function(v)
+    makeSlider("Скорость цикла (сек)",0.005,0.15,Config.MoonwalkSpeed,function(v)
         Config.MoonwalkSpeed = v
     end,true)
-    makeSlider("Длительность нажатия",0.01,0.15,Config.MoonwalkHold,function(v)
+    makeSlider("Удержание (сек)",0.005,0.10,Config.MoonwalkHold,function(v)
         Config.MoonwalkHold = v
     end,true)
-    makeSection("Подсказка")
+    makeSection("Debug")
+    makeSwitch("Debug счётчик","MoonwalkDebug",function(on)
+        if moonDebugLbl then moonDebugLbl.Visible = on end
+    end)
     local y=currentY()
-    local info=Instance.new("TextLabel")
-    info.Size=UDim2.new(1,-16,0,90); info.Position=UDim2.new(0,8,0,y)
-    info.BackgroundColor3=COL.bgRow; info.BackgroundTransparency=.4; info.BorderSizePixel=0
-    info.Text="  🌙 Как работает:\n  1. Включи Auto Moonwalk (M)\n  2. Зажми W — персонаж идёт задом\n  3. Скрипт спамит A/D очень быстро\n\n  ⚠ Слишком быстро = не работает\n     Оптимум: 0.05 / 0.03"
-    info.TextColor3=COL.subtext; info.Font=Enum.Font.Gotham
-    info.TextSize=11; info.TextXAlignment=Enum.TextXAlignment.Left
-    info.TextYAlignment=Enum.TextYAlignment.Top; info.TextWrapped=true; info.Parent=PageHolder
-    corner(info,8); nextY(96)
+    moonDebugLbl = Instance.new("TextLabel")
+    moonDebugLbl.Size=UDim2.new(1,-16,0,26); moonDebugLbl.Position=UDim2.new(0,8,0,y)
+    moonDebugLbl.BackgroundColor3=COL.bgRow; moonDebugLbl.BackgroundTransparency=.3; moonDebugLbl.BorderSizePixel=0
+    moonDebugLbl.Text="  Нажатий: 0"; moonDebugLbl.TextColor3=COL.moon
+    moonDebugLbl.Font=Enum.Font.GothamBold; moonDebugLbl.TextSize=12
+    moonDebugLbl.TextXAlignment=Enum.TextXAlignment.Left
+    moonDebugLbl.Visible = Config.MoonwalkDebug
+    moonDebugLbl.Parent=PageHolder; corner(moonDebugLbl,8); nextY(30)
     makeSection("Тест")
-    makeButton("▶ Тест 3 секунды",function()
+    makeButton("▶ Тест 5 сек (W + A/D)",function()
         if not Config.AutoMoonwalk then
             Config.AutoMoonwalk = true
             if SwitchRefs.AutoMoonwalk then SwitchRefs.AutoMoonwalk.apply(true, true) end
@@ -631,12 +689,21 @@ local function buildMoonPage()
             MoonIndicator.Visible = true
         end
         task.spawn(function()
-            -- Имитируем нажатие W для теста
-            sendKey(Enum.KeyCode.W, true)
-            task.wait(3)
-            sendKey(Enum.KeyCode.W, false)
+            pressKey(Enum.KeyCode.W, "w")
+            task.wait(5)
+            releaseKey(Enum.KeyCode.W, "w")
         end)
     end, COL.moon)
+    makeSection("Подсказка")
+    local y2=currentY()
+    local info=Instance.new("TextLabel")
+    info.Size=UDim2.new(1,-16,0,120); info.Position=UDim2.new(0,8,0,y2)
+    info.BackgroundColor3=COL.bgRow; info.BackgroundTransparency=.4; info.BorderSizePixel=0
+    info.Text="  🌙 Как работает:\n  1. Включи Auto Moonwalk (M)\n  2. Зажми W — персонаж идёт задом\n  3. Скрипт спамит A/D ОЧЕНЬ быстро\n\n  Настройка:\n  • Speed 0.02 = ~50 циклов/сек\n  • Hold 0.02 = клавиша держится 20мс\n  • W-A-D Mode — как ты показал\n\n  ⚠ Не работает → увеличить Speed\n  ⚠ Дёргается → уменьшить Speed"
+    info.TextColor3=COL.subtext; info.Font=Enum.Font.Gotham
+    info.TextSize=11; info.TextXAlignment=Enum.TextXAlignment.Left
+    info.TextYAlignment=Enum.TextYAlignment.Top; info.TextWrapped=true; info.Parent=PageHolder
+    corner(info,8); nextY(126)
 end
 
 local function buildVisualPage()
@@ -685,8 +752,7 @@ local function buildVisualPage()
     makeSwitch("Скрыть всё (])","HideUI",function(on)
         if on then
             Menu.Visible=false; ToggleBtn.Visible=false
-            Watermark.Visible=false; Crosshair.Visible=false
-            MoonIndicator.Visible=false
+            Watermark.Visible=false; Crosshair.Visible=false; MoonIndicator.Visible=false
         else
             ToggleBtn.Visible=true
             Watermark.Visible=Config.Watermark
@@ -733,16 +799,6 @@ local function buildBindPage()
     makeKeybind("Меню","ToggleMenu")
     makeKeybind("Скрыть UI","HideUI")
     makeKeybind("Moonwalk","Moonwalk")
-    makeSection("Информация")
-    local y=currentY()
-    local info=Instance.new("TextLabel")
-    info.Size=UDim2.new(1,-16,0,60); info.Position=UDim2.new(0,8,0,y)
-    info.BackgroundColor3=COL.bgRow; info.BackgroundTransparency=.4; info.BorderSizePixel=0
-    info.Text="  🌙 abuzlok VD — Moonwalk Edition\n  ESP + Fly + Noclip + Visual + Moonwalk"
-    info.TextColor3=COL.subtext; info.Font=Enum.Font.Gotham
-    info.TextSize=11; info.TextXAlignment=Enum.TextXAlignment.Left
-    info.TextYAlignment=Enum.TextYAlignment.Top; info.TextWrapped=true; info.Parent=PageHolder
-    corner(info,8); nextY(66)
     makeSection("Сброс")
     makeButton("↺ Сбросить бинды",function()
         for k,v in pairs(Config.DefaultBinds) do Config.Keybinds[k]=v; refreshBindUI(k) end
@@ -767,7 +823,7 @@ local function showTab(i)
 end
 showTab(1)
 
---// Menu control
+-- Menu control
 local menuOpen=false
 local function setMenuOpen(open)
     menuOpen=open
@@ -823,7 +879,7 @@ for i,b in ipairs(tabButtons) do
     end)
 end
 
---// ESP
+-- ESP
 local function createESPFor(p, char)
     local head=char:WaitForChild("Head",5); if not head then return end
     local d={}
@@ -903,7 +959,7 @@ LocalPlayer.CharacterAdded:Connect(function()
     if Config.FlyEnabled then task.wait(.5); if Config.FlyEnabled then StartFly() end end
 end)
 
---// Keybinds
+-- Keybinds
 local function toggleFly()
     local ns=not Config.FlyEnabled; Config.FlyEnabled=ns
     if ns then StartFly() else StopFly() end
@@ -916,13 +972,9 @@ end
 local function toggleMoonwalk()
     Config.AutoMoonwalk = not Config.AutoMoonwalk
     if Config.AutoMoonwalk then
-        startMoonwalk()
-        MoonIndicator.Visible = true
+        startMoonwalk(); MoonIndicator.Visible = true
     else
-        stopMoonwalk()
-        MoonIndicator.Visible = false
-        sendKey(Enum.KeyCode.A, false)
-        sendKey(Enum.KeyCode.D, false)
+        stopMoonwalk(); MoonIndicator.Visible = false
     end
     if SwitchRefs.AutoMoonwalk then SwitchRefs.AutoMoonwalk.apply(Config.AutoMoonwalk, true) end
 end
@@ -956,7 +1008,7 @@ UserInputService.InputBegan:Connect(function(i,gpe)
     end
 end)
 
---// Auto-restore
+-- Auto-restore
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(.5)
     if not ScreenGui.Parent then ScreenGui.Parent=getGuiParent() end
@@ -967,7 +1019,16 @@ task.spawn(function()
     end
 end)
 
---// Main loop
+-- Debug updater
+task.spawn(function()
+    while task.wait(0.3) do
+        if moonDebugLbl and Config.MoonwalkDebug then
+            moonDebugLbl.Text = "  Нажатий: " .. moonwalkCounter
+        end
+    end
+end)
+
+-- Main loop
 local espAccum = 0
 local ESP_UPDATE_INTERVAL = 0.15
 
@@ -1054,4 +1115,4 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
-print(">>> abuzlok VD Moonwalk загружен")
+print(">>> abuzlok VD Moonwalk V2 загружен")
