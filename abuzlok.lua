@@ -1,6 +1,6 @@
 -- ============================================
--- VIOLENCE DISTRICT | AIMBOT + ESP | ALPHA v0.2
--- Auto-cleanup edition
+-- VIOLENCE DISTRICT | AIMBOT + ESP | ALPHA v0.3
+-- Single file edition — ESP с полной кастомизацией
 -- ============================================
 
 -- ============================================
@@ -20,9 +20,8 @@ if genv.VD_ALPHA_LOADED then
     end
     if old.espCache then
         for _, data in pairs(old.espCache) do
-            if data.highlight then
-                pcall(function() data.highlight:Destroy() end)
-            end
+            if data.highlight then pcall(function() data.highlight:Destroy() end) end
+            if data.billboard then pcall(function() data.billboard:Destroy() end) end
         end
     end
     genv.VD_ALPHA_LOADED = nil
@@ -53,7 +52,7 @@ local Camera = workspace.CurrentCamera
 local Config = {
     -- Aimbot
     AimbotEnabled = false,
-    AimMode = "Revolver", -- "Revolver" или "Flashlight"
+    AimMode = "Revolver",
     Smoothness = 0.15,
     FOV = 150,
     ShowFOV = true,
@@ -61,14 +60,20 @@ local Config = {
     WallCheck = false,
     Prediction = 0.16,
     MaxDistance = 1000,
-    -- Смещение для фонарика
-    FlashlightOffsetX = 30,
-    FlashlightOffsetY = -20,
-    -- ESP
+    FlashlightOffsetX = 35,
+    FlashlightOffsetY = 10,
+    -- ESP Survivors
     ESP_Survivors = false,
-    ESP_Killers = false,
     ESP_SurvivorColor = Color3.fromRGB(0, 255, 100),
+    ESP_Survivor_Name = true,
+    ESP_Survivor_Distance = true,
+    ESP_Survivor_MaxDist = 2000,
+    -- ESP Killers
+    ESP_Killers = false,
     ESP_KillerColor = Color3.fromRGB(255, 50, 50),
+    ESP_Killer_Name = true,
+    ESP_Killer_Distance = true,
+    ESP_Killer_MaxDist = 2000,
 }
 
 -- ==================== РАЗМЕРЫ ====================
@@ -78,7 +83,6 @@ local MENU_W = math.floor(BASE_W * SCALE)
 local MENU_H = math.floor(BASE_H * SCALE)
 
 -- ==================== GUI ====================
--- CoreGui-версия удаляется выше через old.gui, но на случай если флаг слетел — проверим вручную
 local existing = CoreGui:FindFirstChild("VD_Alpha_GUI")
 if existing then existing:Destroy() end
 
@@ -87,7 +91,7 @@ ScreenGui.Name = "VD_Alpha_GUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = CoreGui
-genv.VD_ALPHA_LOADED.gui = ScreenGui  -- ← регистрируем
+genv.VD_ALPHA_LOADED.gui = ScreenGui
 
 -- ==================== ЭКРАН ЗАГРУЗКИ ====================
 local LoadingFrame = Instance.new("Frame")
@@ -135,25 +139,26 @@ StatusLabel.ZIndex = 101
 StatusLabel.Parent = LoadingFrame
 
 local Stages = {
-    {text = "Загрузка модулей...",       time = 0.4},
-    {text = "Проверка окружения...",     time = 0.3},
-    {text = "Инициализация Aimbot...",   time = 0.4},
-    {text = "Инициализация ESP...",      time = 0.4},
-    {text = "Готово!",                   time = 0.3},
+    {text = "Загрузка модулей...",     time = 0.4},
+    {text = "Проверка окружения...",   time = 0.3},
+    {text = "Инициализация Aimbot...", time = 0.4},
+    {text = "Инициализация ESP...",    time = 0.4},
+    {text = "Готово!",                 time = 0.3},
 }
 
 task.spawn(function()
     for i, stage in ipairs(Stages) do
         StatusLabel.Text = stage.text
-        local targetSize = UDim2.new(i / #Stages, 0, 1, 0)
-        TweenService:Create(BarFill, TweenInfo.new(stage.time, Enum.EasingStyle.Quad), {Size = targetSize}):Play()
+        TweenService:Create(BarFill, TweenInfo.new(stage.time, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(i / #Stages, 0, 1, 0)
+        }):Play()
         task.wait(stage.time)
     end
     task.wait(0.3)
-    TweenService:Create(LoadingFrame, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+    for _, obj in ipairs({LoadingFrame, Title, BarBG, BarFill, StatusLabel}) do
+        TweenService:Create(obj, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+    end
     TweenService:Create(Title, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
-    TweenService:Create(BarBG, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
-    TweenService:Create(BarFill, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
     TweenService:Create(StatusLabel, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
     task.wait(0.6)
     LoadingFrame.Visible = false
@@ -202,7 +207,7 @@ local HeaderTitle = Instance.new("TextLabel")
 HeaderTitle.Size = UDim2.new(1, -150, 1, 0)
 HeaderTitle.Position = UDim2.new(0, 20, 0, 0)
 HeaderTitle.BackgroundTransparency = 1
-HeaderTitle.Text = "🔪  VIOLENCE DISTRICT  •  ALPHA v0.2"
+HeaderTitle.Text = "🔪  VIOLENCE DISTRICT  •  ALPHA v0.3"
 HeaderTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
 HeaderTitle.TextSize = 20
 HeaderTitle.Font = Enum.Font.GothamBold
@@ -364,12 +369,10 @@ local function CreateSlider(parent, name, min, max, default, callback)
     FillCorner.CornerRadius = UDim.new(1, 0)
     FillCorner.Parent = SliderFill
 
-    local value = default
     local dragging = false
-
     local function updateFromInput(input)
         local relX = math.clamp((input.Position.X - SliderBG.AbsolutePosition.X) / SliderBG.AbsoluteSize.X, 0, 1)
-        value = min + (max - min) * relX
+        local value = min + (max - min) * relX
         SliderFill.Size = UDim2.new(relX, 0, 1, 0)
         local display = (max - min) > 5 and math.floor(value) or math.floor(value * 100) / 100
         Label.Text = name .. ": " .. tostring(display)
@@ -481,6 +484,382 @@ local function CreateDropdown(parent, name, options, default, callback)
     end
 end
 
+-- ==================== КОМПАКТНЫЕ ЭЛЕМЕНТЫ ====================
+local function CreateSubToggle(parent, name, default, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 34)
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+    Frame.BorderSizePixel = 0
+    Frame.Parent = parent
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 5)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -80, 1, 0)
+    Label.Position = UDim2.new(0, 12, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(200, 200, 215)
+    Label.TextSize = 13
+    Label.Font = Enum.Font.Gotham
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0, 38, 0, 20)
+    ToggleBtn.Position = UDim2.new(1, -50, 0.5, -10)
+    ToggleBtn.BackgroundColor3 = default and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(45, 45, 55)
+    ToggleBtn.Text = ""
+    ToggleBtn.BorderSizePixel = 0
+    ToggleBtn.Parent = Frame
+
+    local TCorner = Instance.new("UICorner")
+    TCorner.CornerRadius = UDim.new(1, 0)
+    TCorner.Parent = ToggleBtn
+
+    local Circle = Instance.new("Frame")
+    Circle.Size = UDim2.new(0, 14, 0, 14)
+    Circle.Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Circle.BorderSizePixel = 0
+    Circle.Parent = ToggleBtn
+
+    local CC = Instance.new("UICorner")
+    CC.CornerRadius = UDim.new(1, 0)
+    CC.Parent = Circle
+
+    local state = default
+    track(ToggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.18), {
+            BackgroundColor3 = state and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(45, 45, 55)
+        }):Play()
+        TweenService:Create(Circle, TweenInfo.new(0.18), {
+            Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        }):Play()
+        if callback then callback(state) end
+    end))
+end
+
+local function CreateSubSlider(parent, name, min, max, default, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 38)
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+    Frame.BorderSizePixel = 0
+    Frame.Parent = parent
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 5)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -24, 0, 16)
+    Label.Position = UDim2.new(0, 12, 0, 4)
+    Label.BackgroundTransparency = 1
+    Label.Text = name .. ": " .. tostring(default)
+    Label.TextColor3 = Color3.fromRGB(200, 200, 215)
+    Label.TextSize = 12
+    Label.Font = Enum.Font.Gotham
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local SliderBG = Instance.new("Frame")
+    SliderBG.Size = UDim2.new(1, -24, 0, 5)
+    SliderBG.Position = UDim2.new(0, 12, 0, 26)
+    SliderBG.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    SliderBG.BorderSizePixel = 0
+    SliderBG.Parent = Frame
+
+    local SBCorner = Instance.new("UICorner")
+    SBCorner.CornerRadius = UDim.new(1, 0)
+    SBCorner.Parent = SliderBG
+
+    local SliderFill = Instance.new("Frame")
+    SliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    SliderFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    SliderFill.BorderSizePixel = 0
+    SliderFill.Parent = SliderBG
+
+    local FCorner = Instance.new("UICorner")
+    FCorner.CornerRadius = UDim.new(1, 0)
+    FCorner.Parent = SliderFill
+
+    local dragging = false
+    local function updateFromInput(input)
+        local relX = math.clamp((input.Position.X - SliderBG.AbsolutePosition.X) / SliderBG.AbsoluteSize.X, 0, 1)
+        local value = min + (max - min) * relX
+        SliderFill.Size = UDim2.new(relX, 0, 1, 0)
+        Label.Text = name .. ": " .. math.floor(value)
+        if callback then callback(math.floor(value)) end
+    end
+
+    track(SliderBG.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            updateFromInput(input)
+        end
+    end))
+    track(UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateFromInput(input)
+        end
+    end))
+    track(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end))
+end
+
+-- ==================== ESP-СЕКЦИЯ С ПОДМЕНЮ ====================
+local function CreateESPEntry(parent, title, configPrefix, initialColor)
+    local keyEnabled  = "ESP_" .. configPrefix
+    local keyColor    = "ESP_" .. configPrefix .. "_Color"
+    local keyName     = "ESP_" .. configPrefix .. "_Name"
+    local keyDistance = "ESP_" .. configPrefix .. "_Distance"
+    local keyMaxDist  = "ESP_" .. configPrefix .. "_MaxDist"
+
+    local COLLAPSED_H = 46
+    local EXPANDED_H  = 320
+
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, 0, 0, COLLAPSED_H)
+    Container.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+    Container.BorderSizePixel = 0
+    Container.ClipsDescendants = true
+    Container.Parent = parent
+
+    local CCorner = Instance.new("UICorner")
+    CCorner.CornerRadius = UDim.new(0, 6)
+    CCorner.Parent = Container
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -200, 0, COLLAPSED_H)
+    Label.Position = UDim2.new(0, 16, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = title
+    Label.TextColor3 = Color3.fromRGB(220, 220, 230)
+    Label.TextSize = 15
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Container
+
+    -- Превью цвета
+    local Preview = Instance.new("Frame")
+    Preview.Size = UDim2.new(0, 18, 0, 18)
+    Preview.Position = UDim2.new(1, -160, 0, 14)
+    Preview.BackgroundColor3 = initialColor
+    Preview.BorderSizePixel = 0
+    Preview.Parent = Container
+
+    local PrevCorner = Instance.new("UICorner")
+    PrevCorner.CornerRadius = UDim.new(1, 0)
+    PrevCorner.Parent = Preview
+
+    local PrevStroke = Instance.new("UIStroke")
+    PrevStroke.Color = Color3.fromRGB(255, 255, 255)
+    PrevStroke.Thickness = 1
+    PrevStroke.Transparency = 0.5
+    PrevStroke.Parent = Preview
+
+    -- Стрелка
+    local ArrowBtn = Instance.new("TextButton")
+    ArrowBtn.Size = UDim2.new(0, 28, 0, 28)
+    ArrowBtn.Position = UDim2.new(1, -122, 0, 9)
+    ArrowBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    ArrowBtn.Text = "▼"
+    ArrowBtn.TextColor3 = Color3.fromRGB(180, 180, 200)
+    ArrowBtn.TextSize = 12
+    ArrowBtn.Font = Enum.Font.GothamBold
+    ArrowBtn.BorderSizePixel = 0
+    ArrowBtn.Parent = Container
+
+    local ArrowCorner = Instance.new("UICorner")
+    ArrowCorner.CornerRadius = UDim.new(0, 5)
+    ArrowCorner.Parent = ArrowBtn
+
+    -- Главный тумблер
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0, 48, 0, 24)
+    ToggleBtn.Position = UDim2.new(1, -62, 0.5, -12)
+    ToggleBtn.BackgroundColor3 = Config[keyEnabled] and initialColor or Color3.fromRGB(50, 50, 60)
+    ToggleBtn.Text = ""
+    ToggleBtn.BorderSizePixel = 0
+    ToggleBtn.Parent = Container
+
+    local TCorner = Instance.new("UICorner")
+    TCorner.CornerRadius = UDim.new(1, 0)
+    TCorner.Parent = ToggleBtn
+
+    local Circle = Instance.new("Frame")
+    Circle.Size = UDim2.new(0, 18, 0, 18)
+    Circle.Position = Config[keyEnabled] and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+    Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Circle.BorderSizePixel = 0
+    Circle.Parent = ToggleBtn
+
+    local CC = Instance.new("UICorner")
+    CC.CornerRadius = UDim.new(1, 0)
+    CC.Parent = Circle
+
+    local toggleState = Config[keyEnabled]
+    track(ToggleBtn.MouseButton1Click:Connect(function()
+        toggleState = not toggleState
+        Config[keyEnabled] = toggleState
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = toggleState and Config[keyColor] or Color3.fromRGB(50, 50, 60)
+        }):Play()
+        TweenService:Create(Circle, TweenInfo.new(0.2), {
+            Position = toggleState and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+        }):Play()
+    end))
+
+    -- Содержимое
+    local ContentFrame = Instance.new("Frame")
+    ContentFrame.Size = UDim2.new(1, -24, 0, EXPANDED_H - COLLAPSED_H - 10)
+    ContentFrame.Position = UDim2.new(0, 12, 0, COLLAPSED_H + 5)
+    ContentFrame.BackgroundTransparency = 1
+    ContentFrame.Parent = Container
+
+    local CLayout = Instance.new("UIListLayout")
+    CLayout.Padding = UDim.new(0, 6)
+    CLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    CLayout.Parent = ContentFrame
+
+    CreateSubToggle(ContentFrame, "👤  Показывать ник", Config[keyName], function(v) Config[keyName] = v end)
+    CreateSubToggle(ContentFrame, "📏  Показывать дистанцию", Config[keyDistance], function(v) Config[keyDistance] = v end)
+    CreateSubSlider(ContentFrame, "Макс. дистанция (м)", 50, 5000, Config[keyMaxDist], function(v) Config[keyMaxDist] = v end)
+
+    -- RGB-пикер
+    local ColorFrame = Instance.new("Frame")
+    ColorFrame.Size = UDim2.new(1, 0, 0, 148)
+    ColorFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+    ColorFrame.BorderSizePixel = 0
+    ColorFrame.Parent = ContentFrame
+
+    local CFrCorner = Instance.new("UICorner")
+    CFrCorner.CornerRadius = UDim.new(0, 5)
+    CFrCorner.Parent = ColorFrame
+
+    local ColorTitle = Instance.new("TextLabel")
+    ColorTitle.Size = UDim2.new(1, -60, 0, 18)
+    ColorTitle.Position = UDim2.new(0, 12, 0, 4)
+    ColorTitle.BackgroundTransparency = 1
+    ColorTitle.Text = "🎨  Цвет ESP"
+    ColorTitle.TextColor3 = Color3.fromRGB(200, 200, 215)
+    ColorTitle.TextSize = 12
+    ColorTitle.Font = Enum.Font.GothamMedium
+    ColorTitle.TextXAlignment = Enum.TextXAlignment.Left
+    ColorTitle.Parent = ColorFrame
+
+    local BigPreview = Instance.new("Frame")
+    BigPreview.Size = UDim2.new(0, 36, 0, 36)
+    BigPreview.Position = UDim2.new(1, -48, 0, 4)
+    BigPreview.BackgroundColor3 = initialColor
+    BigPreview.BorderSizePixel = 0
+    BigPreview.Parent = ColorFrame
+
+    local BPcorner = Instance.new("UICorner")
+    BPcorner.CornerRadius = UDim.new(0, 6)
+    BPcorner.Parent = BigPreview
+
+    local BPstroke = Instance.new("UIStroke")
+    BPstroke.Color = Color3.fromRGB(255, 255, 255)
+    BPstroke.Thickness = 1
+    BPstroke.Transparency = 0.5
+    BPstroke.Parent = BigPreview
+
+    local r0 = math.floor(initialColor.R * 255)
+    local g0 = math.floor(initialColor.G * 255)
+    local b0 = math.floor(initialColor.B * 255)
+
+    local function applyColor()
+        local col = Color3.fromRGB(r0, g0, b0)
+        Config[keyColor] = col
+        BigPreview.BackgroundColor3 = col
+        Preview.BackgroundColor3 = col
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.15), {
+            BackgroundColor3 = toggleState and col or Color3.fromRGB(50, 50, 60)
+        }):Play()
+    end
+
+    local function makeChannelSlider(name, y, initial, onChanged)
+        local SliderBG = Instance.new("Frame")
+        SliderBG.Size = UDim2.new(1, -24, 0, 5)
+        SliderBG.Position = UDim2.new(0, 12, 0, y + 22)
+        SliderBG.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+        SliderBG.BorderSizePixel = 0
+        SliderBG.Parent = ColorFrame
+
+        local SBCorner = Instance.new("UICorner")
+        SBCorner.CornerRadius = UDim.new(1, 0)
+        SBCorner.Parent = SliderBG
+
+        local Fill = Instance.new("Frame")
+        Fill.Size = UDim2.new(initial / 255, 0, 1, 0)
+        Fill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+        Fill.BorderSizePixel = 0
+        Fill.Parent = SliderBG
+
+        local FCorner = Instance.new("UICorner")
+        FCorner.CornerRadius = UDim.new(1, 0)
+        FCorner.Parent = Fill
+
+        local Lbl = Instance.new("TextLabel")
+        Lbl.Size = UDim2.new(1, -24, 0, 16)
+        Lbl.Position = UDim2.new(0, 12, 0, y + 2)
+        Lbl.BackgroundTransparency = 1
+        Lbl.Text = name .. ": " .. initial
+        Lbl.TextColor3 = Color3.fromRGB(200, 200, 215)
+        Lbl.TextSize = 12
+        Lbl.Font = Enum.Font.Gotham
+        Lbl.TextXAlignment = Enum.TextXAlignment.Left
+        Lbl.Parent = ColorFrame
+
+        local dragging = false
+        local function update(input)
+            local relX = math.clamp((input.Position.X - SliderBG.AbsolutePosition.X) / SliderBG.AbsoluteSize.X, 0, 1)
+            local v = math.floor(relX * 255)
+            Fill.Size = UDim2.new(relX, 0, 1, 0)
+            Lbl.Text = name .. ": " .. v
+            onChanged(v)
+            applyColor()
+        end
+
+        track(SliderBG.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                update(input)
+            end
+        end))
+        track(UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                update(input)
+            end
+        end))
+        track(UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end))
+    end
+
+    makeChannelSlider("R", 26, r0, function(v) r0 = v end)
+    makeChannelSlider("G", 62, g0, function(v) g0 = v end)
+    makeChannelSlider("B", 98, b0, function(v) b0 = v end)
+
+    local expanded = false
+    track(ArrowBtn.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        ArrowBtn.Text = expanded and "▲" or "▼"
+        TweenService:Create(Container, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 0, expanded and EXPANDED_H or COLLAPSED_H)
+        }):Play()
+    end))
+end
+
 -- ==================== СОЗДАНИЕ СТРАНИЦ ====================
 local function CreatePage(id)
     local Scroll = Instance.new("ScrollingFrame")
@@ -512,7 +891,7 @@ local PageAimbot = CreatePage("Aimbot")
 local PageESP = CreatePage("ESP")
 local PageMisc = CreatePage("Misc")
 
--- ==================== КНОПКИ КАТЕГОРИЙ ====================
+-- ==================== КАТЕГОРИИ ====================
 local function CreateCategoryButton(name, icon, page)
     local Btn = Instance.new("TextButton")
     Btn.Name = name
@@ -585,7 +964,7 @@ Pages["Aimbot"] = PageAimbot
 Pages["ESP"] = PageESP
 Pages["Misc"] = PageMisc
 
--- ==================== НАПОЛНЕНИЕ: AIMBOT ====================
+-- ==================== AIMBOT UI ====================
 CreateToggle(PageAimbot, "🎯  Включить аимбот", Config.AimbotEnabled, function(v) Config.AimbotEnabled = v end)
 CreateDropdown(PageAimbot, "Режим (Предмет)", {"Revolver", "Flashlight"}, Config.AimMode, function(v)
     Config.AimMode = v
@@ -600,29 +979,14 @@ CreateToggle(PageAimbot, "🧱  Wall Check", Config.WallCheck, function(v) Confi
 CreateSlider(PageAimbot, "Фонарик: Смещение X (вправо)", -100, 100, Config.FlashlightOffsetX, function(v) Config.FlashlightOffsetX = v end)
 CreateSlider(PageAimbot, "Фонарик: Смещение Y (вверх)", -100, 100, Config.FlashlightOffsetY, function(v) Config.FlashlightOffsetY = v end)
 
--- ==================== НАПОЛНЕНИЕ: ESP ====================
-CreateToggle(PageESP, "🟢  ESP Выживших", Config.ESP_Survivors, function(v) Config.ESP_Survivors = v end)
-CreateToggle(PageESP, "🔴  ESP Убийц", Config.ESP_Killers, function(v) Config.ESP_Killers = v end)
+-- ==================== ESP UI ====================
+CreateESPEntry(PageESP, "🟢  ESP Выживших", "Survivor", Config.ESP_SurvivorColor)
+CreateESPEntry(PageESP, "🔴  ESP Убийц",    "Killer",   Config.ESP_KillerColor)
 
-local ESPInfo = Instance.new("TextLabel")
-ESPInfo.Size = UDim2.new(1, 0, 0, 60)
-ESPInfo.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-ESPInfo.BorderSizePixel = 0
-ESPInfo.Text = "Цвета ESP (фиксированные для альфы):\nВыжившие — зелёный, Убийцы — красный"
-ESPInfo.TextColor3 = Color3.fromRGB(180, 180, 200)
-ESPInfo.TextSize = 13
-ESPInfo.Font = Enum.Font.Gotham
-ESPInfo.Parent = PageESP
-
-local EICorner = Instance.new("UICorner")
-EICorner.CornerRadius = UDim.new(0, 6)
-EICorner.Parent = ESPInfo
-
--- ==================== НАПОЛНЕНИЕ: MISC ====================
+-- ==================== MISC UI ====================
 CreateToggle(PageMisc, "🚀  Скорость (заглушка)", false, function(v) end)
 CreateToggle(PageMisc, "🦘  Прыжок (заглушка)", false, function(v) end)
 
--- Кнопка выгрузки
 local UnloadBtn = Instance.new("TextButton")
 UnloadBtn.Size = UDim2.new(1, 0, 0, 46)
 UnloadBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
@@ -642,8 +1006,9 @@ track(UnloadBtn.MouseButton1Click:Connect(function()
         pcall(function() c:Disconnect() end)
     end
     if ScreenGui then ScreenGui:Destroy() end
-    for _, data in pairs(espCache or {}) do
+    for _, data in pairs(genv.VD_ALPHA_LOADED.espCache or {}) do
         if data.highlight then pcall(function() data.highlight:Destroy() end) end
+        if data.billboard then pcall(function() data.billboard:Destroy() end) end
     end
     genv.VD_ALPHA_LOADED = nil
     print("[VD Alpha] Скрипт выгружен.")
@@ -733,11 +1098,9 @@ track(RunService.RenderStepped:Connect(function()
     if not target then return end
 
     local targetPos = target.Position
-
     if Config.Prediction > 0 then
         targetPos = targetPos + target.Velocity * Config.Prediction
     end
-
     if Config.AimMode == "Flashlight" then
         local right = Camera.CFrame.RightVector
         local up = Camera.CFrame.UpVector
@@ -750,7 +1113,7 @@ end))
 
 -- ==================== ЛОГИКА ESP ====================
 local espCache = {}
-genv.VD_ALPHA_LOADED.espCache = espCache  -- ← регистрируем
+genv.VD_ALPHA_LOADED.espCache = espCache
 
 local function getTeamType(player)
     if player.Team then
@@ -772,7 +1135,8 @@ local function createESP(player)
     if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 
     local teamType = getTeamType(player)
-    local color = (teamType == "Killer") and Config.ESP_KillerColor or Config.ESP_SurvivorColor
+    local isKiller = (teamType == "Killer")
+    local color = isKiller and Config.ESP_KillerColor or Config.ESP_SurvivorColor
 
     local highlight = Instance.new("Highlight")
     highlight.Name = "VD_ESP_Highlight"
@@ -785,14 +1149,53 @@ local function createESP(player)
     highlight.Enabled = false
     highlight.Parent = character
 
-    espCache[player] = {highlight = highlight, team = teamType}
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "VD_ESP_Billboard"
+    billboard.Size = UDim2.new(0, 200, 0, 42)
+    billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+    billboard.Enabled = false
+    billboard.Parent = character
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0, 20)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = player.Name
+    nameLabel.TextColor3 = color
+    nameLabel.TextStrokeTransparency = 0.3
+    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 14
+    nameLabel.Parent = billboard
+
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Name = "DistanceLabel"
+    distLabel.Size = UDim2.new(1, 0, 0, 18)
+    distLabel.Position = UDim2.new(0, 0, 0, 20)
+    distLabel.BackgroundTransparency = 1
+    distLabel.Text = "[0m]"
+    distLabel.TextColor3 = color
+    distLabel.TextStrokeTransparency = 0.3
+    distLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    distLabel.Font = Enum.Font.Gotham
+    distLabel.TextSize = 12
+    distLabel.Parent = billboard
+
+    espCache[player] = {
+        highlight = highlight,
+        billboard = billboard,
+        nameLabel = nameLabel,
+        distLabel = distLabel,
+        team = teamType,
+    }
 end
 
 local function removeESP(player)
     if espCache[player] then
-        if espCache[player].highlight then
-            espCache[player].highlight:Destroy()
-        end
+        if espCache[player].highlight then espCache[player].highlight:Destroy() end
+        if espCache[player].billboard then espCache[player].billboard:Destroy() end
         espCache[player] = nil
     end
 end
@@ -810,37 +1213,63 @@ end))
 track(Players.PlayerRemoving:Connect(removeESP))
 
 track(RunService.RenderStepped:Connect(function()
-    if not Config.ESP_Survivors and not Config.ESP_Killers then
-        for _, data in pairs(espCache) do
-            if data.highlight then data.highlight.Enabled = false end
-        end
-        return
-    end
+    local anyOn = Config.ESP_Survivors or Config.ESP_Killers
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
 
         local data = espCache[player]
 
-        if not data and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        if anyOn and not data and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             createESP(player)
             data = espCache[player]
         end
 
-        if data and data.highlight then
+        if data then
             local character = player.Character
-            if character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
+            local hum = character and character:FindFirstChildOfClass("Humanoid")
+
+            if character and hum and hum.Health > 0 then
                 local currentTeam = getTeamType(player)
                 if currentTeam ~= data.team then
                     data.team = currentTeam
-                    data.highlight.FillColor = (currentTeam == "Killer") and Config.ESP_KillerColor or Config.ESP_SurvivorColor
+                end
+                local isKiller = (currentTeam == "Killer")
+                local color = isKiller and Config.ESP_KillerColor or Config.ESP_SurvivorColor
+                local enabled = isKiller and Config.ESP_Killers or (not isKiller and Config.ESP_Survivors)
+                local showName = isKiller and Config.ESP_Killer_Name or Config.ESP_Survivor_Name
+                local showDist = isKiller and Config.ESP_Killer_Distance or Config.ESP_Survivor_Distance
+                local maxDist = isKiller and Config.ESP_Killer_MaxDist or Config.ESP_Survivor_MaxDist
+
+                local myChar = LocalPlayer.Character
+                local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                local dist = 0
+                if myHRP then
+                    dist = math.floor((myHRP.Position - character.HumanoidRootPart.Position).Magnitude)
                 end
 
-                local shouldShow = (currentTeam == "Killer" and Config.ESP_Killers) or (currentTeam == "Survivor" and Config.ESP_Survivors)
-                data.highlight.Enabled = shouldShow
+                local show = enabled and dist <= maxDist
+
+                data.highlight.Enabled = show
+                data.highlight.FillColor = color
                 data.highlight.Adornee = character
+
+                data.billboard.Enabled = show and (showName or showDist)
+                data.billboard.Adornee = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+
+                data.nameLabel.Visible = showName
+                data.nameLabel.Text = player.Name
+                data.nameLabel.TextColor3 = color
+
+                data.distLabel.Visible = showDist
+                data.distLabel.Text = "[" .. dist .. "m]"
+                data.distLabel.TextColor3 = color
+
+                data.nameLabel.Position = UDim2.new(0, 0, 0, showName and 0 or 20)
+                data.distLabel.Position = UDim2.new(0, 0, 0, showName and 20 or 0)
             else
                 data.highlight.Enabled = false
+                data.billboard.Enabled = false
             end
         end
     end
@@ -903,7 +1332,6 @@ local function toggleMenu()
 end
 
 track(CloseBtn.MouseButton1Click:Connect(toggleMenu))
-
 track(UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.L then
@@ -911,5 +1339,8 @@ track(UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end))
 
-print("[VD Alpha v0.2] Скрипт загружен. Нажми L чтобы открыть меню.")
-print("[VD Alpha v0.2] Всего подключений: " .. tostring(#ActiveConnections))
+CategoryButtons["Aimbot"].setActive(true)
+CurrentCategory = "Aimbot"
+PageAimbot.Visible = true
+
+print("[VD Alpha v0.3] Скрипт загружен. L — меню, ПКМ — аимбот. Соединений: " .. tostring(#ActiveConnections))
