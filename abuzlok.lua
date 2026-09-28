@@ -1,7 +1,45 @@
 -- ============================================
--- VIOLENCE DISTRICT | AIMBOT + ESP | ALPHA v0.1
+-- VIOLENCE DISTRICT | AIMBOT + ESP | ALPHA v0.2
+-- Auto-cleanup edition
 -- ============================================
 
+-- ============================================
+-- АВТООЧИСТКА ПРЕДЫДУЩЕЙ ВЕРСИИ
+-- ============================================
+local genv = (typeof(getgenv) == "function" and getgenv()) or _G
+
+if genv.VD_ALPHA_LOADED then
+    local old = genv.VD_ALPHA_LOADED
+    if old.connections then
+        for _, c in ipairs(old.connections) do
+            pcall(function() c:Disconnect() end)
+        end
+    end
+    if old.gui then
+        pcall(function() old.gui:Destroy() end)
+    end
+    if old.espCache then
+        for _, data in pairs(old.espCache) do
+            if data.highlight then
+                pcall(function() data.highlight:Destroy() end)
+            end
+        end
+    end
+    genv.VD_ALPHA_LOADED = nil
+    print("[VD Alpha] Предыдущая версия скрипта удалена.")
+end
+
+local ActiveConnections = {}
+genv.VD_ALPHA_LOADED = { connections = ActiveConnections, gui = nil, espCache = nil }
+
+local function track(c)
+    table.insert(ActiveConnections, c)
+    return c
+end
+
+-- ============================================
+-- СЕРВИСЫ
+-- ============================================
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -39,16 +77,17 @@ local SCALE = 1 / 1.4
 local MENU_W = math.floor(BASE_W * SCALE)
 local MENU_H = math.floor(BASE_H * SCALE)
 
--- ==================== ЗАЩИТА ====================
-if CoreGui:FindFirstChild("VD_Alpha_GUI") then
-    CoreGui.VD_Alpha_GUI:Destroy()
-end
+-- ==================== GUI ====================
+-- CoreGui-версия удаляется выше через old.gui, но на случай если флаг слетел — проверим вручную
+local existing = CoreGui:FindFirstChild("VD_Alpha_GUI")
+if existing then existing:Destroy() end
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "VD_Alpha_GUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = CoreGui
+genv.VD_ALPHA_LOADED.gui = ScreenGui  -- ← регистрируем
 
 -- ==================== ЭКРАН ЗАГРУЗКИ ====================
 local LoadingFrame = Instance.new("Frame")
@@ -163,7 +202,7 @@ local HeaderTitle = Instance.new("TextLabel")
 HeaderTitle.Size = UDim2.new(1, -150, 1, 0)
 HeaderTitle.Position = UDim2.new(0, 20, 0, 0)
 HeaderTitle.BackgroundTransparency = 1
-HeaderTitle.Text = "🔪  VIOLENCE DISTRICT  •  ALPHA"
+HeaderTitle.Text = "🔪  VIOLENCE DISTRICT  •  ALPHA v0.2"
 HeaderTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
 HeaderTitle.TextSize = 20
 HeaderTitle.Font = Enum.Font.GothamBold
@@ -270,7 +309,7 @@ local function CreateToggle(parent, name, default, callback)
     CircleCorner.Parent = Circle
 
     local state = default
-    ToggleBtn.MouseButton1Click:Connect(function()
+    track(ToggleBtn.MouseButton1Click:Connect(function()
         state = not state
         TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
             BackgroundColor3 = state and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(50, 50, 60)
@@ -279,7 +318,7 @@ local function CreateToggle(parent, name, default, callback)
             Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
         }):Play()
         if callback then callback(state) end
-    end)
+    end))
 end
 
 local function CreateSlider(parent, name, min, max, default, callback)
@@ -337,22 +376,22 @@ local function CreateSlider(parent, name, min, max, default, callback)
         if callback then callback(value) end
     end
 
-    SliderBG.InputBegan:Connect(function(input)
+    track(SliderBG.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             updateFromInput(input)
         end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
+    end))
+    track(UserInputService.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             updateFromInput(input)
         end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
+    end))
+    track(UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
-    end)
+    end))
 end
 
 local function CreateDropdown(parent, name, options, default, callback)
@@ -396,7 +435,7 @@ local function CreateDropdown(parent, name, options, default, callback)
     local expanded = false
     local optionButtons = {}
 
-    Btn.MouseButton1Click:Connect(function()
+    track(Btn.MouseButton1Click:Connect(function()
         expanded = not expanded
         if expanded then
             for _, opt in ipairs(optionButtons) do
@@ -409,7 +448,7 @@ local function CreateDropdown(parent, name, options, default, callback)
             end
             TweenService:Create(Frame, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, 46)}):Play()
         end
-    end)
+    end))
 
     for i, opt in ipairs(options) do
         local OptBtn = Instance.new("TextButton")
@@ -429,7 +468,7 @@ local function CreateDropdown(parent, name, options, default, callback)
         OptCorner.CornerRadius = UDim.new(0, 4)
         OptCorner.Parent = OptBtn
 
-        OptBtn.MouseButton1Click:Connect(function()
+        track(OptBtn.MouseButton1Click:Connect(function()
             Btn.Text = opt .. "  ▼"
             expanded = false
             for _, o in ipairs(optionButtons) do
@@ -437,7 +476,7 @@ local function CreateDropdown(parent, name, options, default, callback)
             end
             TweenService:Create(Frame, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, 46)}):Play()
             if callback then callback(opt) end
-        end)
+        end))
         table.insert(optionButtons, OptBtn)
     end
 end
@@ -523,7 +562,7 @@ local function CreateCategoryButton(name, icon, page)
         }):Play()
     end
 
-    Btn.MouseButton1Click:Connect(function()
+    track(Btn.MouseButton1Click:Connect(function()
         if CurrentCategory == name then return end
         if CurrentCategory and CategoryButtons[CurrentCategory] then
             CategoryButtons[CurrentCategory].setActive(false)
@@ -533,7 +572,7 @@ local function CreateCategoryButton(name, icon, page)
         for pName, pFrame in pairs(Pages) do
             pFrame.Visible = (pName == name)
         end
-    end)
+    end))
 
     CategoryButtons[name] = {setActive = setActive, button = Btn, page = page}
 end
@@ -558,15 +597,13 @@ CreateSlider(PageAimbot, "Prediction", 0, 0.5, Config.Prediction, function(v) Co
 CreateSlider(PageAimbot, "Max Distance", 50, 2000, Config.MaxDistance, function(v) Config.MaxDistance = v end)
 CreateToggle(PageAimbot, "🛡  Team Check", Config.TeamCheck, function(v) Config.TeamCheck = v end)
 CreateToggle(PageAimbot, "🧱  Wall Check", Config.WallCheck, function(v) Config.WallCheck = v end)
--- Смещение для фонарика
 CreateSlider(PageAimbot, "Фонарик: Смещение X (вправо)", -100, 100, Config.FlashlightOffsetX, function(v) Config.FlashlightOffsetX = v end)
 CreateSlider(PageAimbot, "Фонарик: Смещение Y (вверх)", -100, 100, Config.FlashlightOffsetY, function(v) Config.FlashlightOffsetY = v end)
 
 -- ==================== НАПОЛНЕНИЕ: ESP ====================
 CreateToggle(PageESP, "🟢  ESP Выживших", Config.ESP_Survivors, function(v) Config.ESP_Survivors = v end)
 CreateToggle(PageESP, "🔴  ESP Убийц", Config.ESP_Killers, function(v) Config.ESP_Killers = v end)
--- Цвета можно сделать через текстовые поля или просто оставить дефолтными. 
--- Для альфы оставим фиксированные цвета, но добавим подсказку.
+
 local ESPInfo = Instance.new("TextLabel")
 ESPInfo.Size = UDim2.new(1, 0, 0, 60)
 ESPInfo.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
@@ -584,6 +621,33 @@ EICorner.Parent = ESPInfo
 -- ==================== НАПОЛНЕНИЕ: MISC ====================
 CreateToggle(PageMisc, "🚀  Скорость (заглушка)", false, function(v) end)
 CreateToggle(PageMisc, "🦘  Прыжок (заглушка)", false, function(v) end)
+
+-- Кнопка выгрузки
+local UnloadBtn = Instance.new("TextButton")
+UnloadBtn.Size = UDim2.new(1, 0, 0, 46)
+UnloadBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+UnloadBtn.Text = "⚠  ВЫГРУЗИТЬ СКРИПТ"
+UnloadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+UnloadBtn.TextSize = 15
+UnloadBtn.Font = Enum.Font.GothamBold
+UnloadBtn.BorderSizePixel = 0
+UnloadBtn.Parent = PageMisc
+
+local UBCorner = Instance.new("UICorner")
+UBCorner.CornerRadius = UDim.new(0, 6)
+UBCorner.Parent = UnloadBtn
+
+track(UnloadBtn.MouseButton1Click:Connect(function()
+    for _, c in ipairs(ActiveConnections) do
+        pcall(function() c:Disconnect() end)
+    end
+    if ScreenGui then ScreenGui:Destroy() end
+    for _, data in pairs(espCache or {}) do
+        if data.highlight then pcall(function() data.highlight:Destroy() end) end
+    end
+    genv.VD_ALPHA_LOADED = nil
+    print("[VD Alpha] Скрипт выгружен.")
+end))
 
 -- ==================== FOV КРУГ ====================
 local FOVCircle = Instance.new("Frame")
@@ -606,25 +670,25 @@ FOVStroke.Thickness = 1.5
 FOVStroke.Transparency = 0.3
 FOVStroke.Parent = FOVCircle
 
-RunService.RenderStepped:Connect(function()
+track(RunService.RenderStepped:Connect(function()
     FOVCircle.Visible = Config.AimbotEnabled and Config.ShowFOV
     FOVCircle.Size = UDim2.new(0, Config.FOV * 2, 0, Config.FOV * 2)
-end)
+end))
 
 -- ==================== ЛОГИКА АИМБОТА ====================
 local aiming = false
 
-UserInputService.InputBegan:Connect(function(input, gpe)
+track(UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton2 then
         aiming = true
     end
-end)
-UserInputService.InputEnded:Connect(function(input)
+end))
+track(UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton2 then
         aiming = false
     end
-end)
+end))
 
 local function isVisible(part)
     if not Config.WallCheck then return true end
@@ -663,38 +727,32 @@ local function getClosestTarget()
     return closest
 end
 
-RunService.RenderStepped:Connect(function()
+track(RunService.RenderStepped:Connect(function()
     if not Config.AimbotEnabled or not aiming then return end
     local target = getClosestTarget()
     if not target then return end
-    
+
     local targetPos = target.Position
-    
-    -- Prediction
+
     if Config.Prediction > 0 then
         targetPos = targetPos + target.Velocity * Config.Prediction
     end
-    
-    -- Смещение для фонарика
+
     if Config.AimMode == "Flashlight" then
-        -- Преобразуем смещение в мировые координаты относительно камеры
         local right = Camera.CFrame.RightVector
         local up = Camera.CFrame.UpVector
         targetPos = targetPos + right * (Config.FlashlightOffsetX / 100) + up * (Config.FlashlightOffsetY / 100)
     end
-    
+
     local aimCFrame = CFrame.new(Camera.CFrame.Position, targetPos)
     Camera.CFrame = Camera.CFrame:Lerp(aimCFrame, Config.Smoothness)
-end)
+end))
 
 -- ==================== ЛОГИКА ESP ====================
-local espCache = {} -- [player] = {highlight = Highlight, team = "Survivor"/"Killer"}
+local espCache = {}
+genv.VD_ALPHA_LOADED.espCache = espCache  -- ← регистрируем
 
--- Универсальная функция для определения команды игрока.
--- ВНИМАНИЕ: Это ОЧЕНЬ условная эвристика для альфа-версии. 
--- В реальном "Районе насилия" нужно смотреть, как именно игра назначает команды.
 local function getTeamType(player)
-    -- Приоритет 1: Проверка через TeamColor или Team (если игра использует стандартную систему)
     if player.Team then
         local teamName = player.Team.Name:lower()
         if teamName:find("killer") or teamName:find("убийца") or teamName:find("slasher") then
@@ -703,22 +761,19 @@ local function getTeamType(player)
             return "Survivor"
         end
     end
-    -- Приоритет 2: Проверка по имени игрока (если в игре есть префиксы)
     local name = player.Name:lower()
     if name:find("killer") then return "Killer" end
     if name:find("survivor") then return "Survivor" end
-    
-    -- По умолчанию считаем выжившим, чтобы не пропустить цель
     return "Survivor"
 end
 
 local function createESP(player)
     local character = player.Character
     if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-    
+
     local teamType = getTeamType(player)
     local color = (teamType == "Killer") and Config.ESP_KillerColor or Config.ESP_SurvivorColor
-    
+
     local highlight = Instance.new("Highlight")
     highlight.Name = "VD_ESP_Highlight"
     highlight.Adornee = character
@@ -727,9 +782,9 @@ local function createESP(player)
     highlight.OutlineColor = Color3.new(1, 1, 1)
     highlight.OutlineTransparency = 0.3
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Enabled = false -- Включается в цикле RenderStepped
+    highlight.Enabled = false
     highlight.Parent = character
-    
+
     espCache[player] = {highlight = highlight, team = teamType}
 end
 
@@ -742,80 +797,73 @@ local function removeESP(player)
     end
 end
 
--- Отслеживание добавления/удаления игроков
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        task.wait(0.5) -- Небольшая задержка, чтобы персонаж прогрузился
+track(Players.PlayerAdded:Connect(function(player)
+    track(player.CharacterAdded:Connect(function()
+        task.wait(0.5)
         if espCache[player] then removeESP(player) end
         if Config.ESP_Survivors or Config.ESP_Killers then
             createESP(player)
         end
-    end)
-end)
+    end))
+end))
 
-Players.PlayerRemoving:Connect(removeESP)
+track(Players.PlayerRemoving:Connect(removeESP))
 
--- Основной цикл обновления ESP
-RunService.RenderStepped:Connect(function()
-    -- Если оба тумблера выключены, просто скрываем всё и выходим
+track(RunService.RenderStepped:Connect(function()
     if not Config.ESP_Survivors and not Config.ESP_Killers then
-        for player, data in pairs(espCache) do
+        for _, data in pairs(espCache) do
             if data.highlight then data.highlight.Enabled = false end
         end
         return
     end
-    
+
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
-        
+
         local data = espCache[player]
-        
-        -- Если ESP для игрока ещё не создан, но он в игре и жив — создаём
+
         if not data and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             createESP(player)
             data = espCache[player]
         end
-        
+
         if data and data.highlight then
             local character = player.Character
-            -- Проверяем, жив ли персонаж
             if character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
-                -- Обновляем цвет и видимость в зависимости от текущей команды и настроек
                 local currentTeam = getTeamType(player)
                 if currentTeam ~= data.team then
-                    -- Команда изменилась, обновляем
                     data.team = currentTeam
                     data.highlight.FillColor = (currentTeam == "Killer") and Config.ESP_KillerColor or Config.ESP_SurvivorColor
                 end
-                
+
                 local shouldShow = (currentTeam == "Killer" and Config.ESP_Killers) or (currentTeam == "Survivor" and Config.ESP_Survivors)
                 data.highlight.Enabled = shouldShow
-                data.highlight.Adornee = character -- На случай респавна
+                data.highlight.Adornee = character
             else
                 data.highlight.Enabled = false
             end
         end
     end
-end)
+end))
 
 -- ==================== ПЕРЕТАСКИВАНИЕ ====================
 local dragging, dragStart, startPos
-Header.InputBegan:Connect(function(input)
+track(Header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = Menu.Position
-        input.Changed:Connect(function()
+        track(input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
+        end))
     end
-end)
-UserInputService.InputChanged:Connect(function(input)
+end))
+track(UserInputService.InputChanged:Connect(function(input)
     if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         Menu.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-end)
+end))
 
 -- ==================== УПРАВЛЕНИЕ МЕНЮ ====================
 local menuOpen = false
@@ -854,13 +902,14 @@ local function toggleMenu()
     end
 end
 
-CloseBtn.MouseButton1Click:Connect(toggleMenu)
+track(CloseBtn.MouseButton1Click:Connect(toggleMenu))
 
-UserInputService.InputBegan:Connect(function(input, gpe)
+track(UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.L then
         toggleMenu()
     end
-end)
+end))
 
-print("[VD Alpha] Скрипт загружен. Нажми L чтобы открыть меню.")
+print("[VD Alpha v0.2] Скрипт загружен. Нажми L чтобы открыть меню.")
+print("[VD Alpha v0.2] Всего подключений: " .. tostring(#ActiveConnections))
