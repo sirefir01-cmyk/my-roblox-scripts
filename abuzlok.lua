@@ -1,11 +1,11 @@
 --[[
     █████╗ ██████╗ ██╗   ██╗███████╗██╗      ██████╗ ██╗  ██╗
     ██╔══██╗██╔══██╗██║   ██║╚══███╔╝██║     ██╔═══██╗██║ ██╔╝
-    ███████║██████╔╝██║   ██║  ███╔╝ ██║     ██║   ██║█████╔╝ 
-    ██╔══██║██╔══██╗██║   ██║ ███╔╝  ██║     ██║   ██║██╔═██╗ 
+    ███████║██████╔╝██║   ██║  ███╔╝ ██║     ██║   ██║█████╔╝
+    ██╔══██║██╔══██╗██║   ██║ ███╔╝  ██║     ██║   ██║██╔═██╗
     ██║  ██║██████╔╝╚██████╔╝███████╗███████╗╚██████╔╝██║  ██╗
     ╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
-                    Player Highlight • by abuzlok
+                Player Highlight • v2 • by abuzlok
 --]]
 
 local Players          = game:GetService("Players")
@@ -26,7 +26,8 @@ local Config = {
     Rainbow             = false,
     TeamCheck           = false,
     MaxDistance         = 1000,
-    Keybind             = Enum.KeyCode.RightShift,
+    HighlightKey        = Enum.KeyCode.RightShift, -- вкл/выкл подсветку
+    ToggleUIKey         = Enum.KeyCode.L,          -- показать/скрыть меню
 }
 
 -- ============================================================
@@ -75,14 +76,16 @@ local gui = new("ScreenGui", {
 -- ГЛАВНАЯ ПАНЕЛЬ
 -- ============================================================
 local HEADER_H  = 54
-local CONTENT_H = 320
+local CONTENT_H = 340
 local WIDTH     = 340
+local EXPANDED_SIZE   = UDim2.new(0, WIDTH, 0, HEADER_H + CONTENT_H)
+local COLLAPSED_SIZE  = UDim2.new(0, WIDTH, 0, HEADER_H)
 
 local main = new("Frame", {
     Name = "abuzlok",
     AnchorPoint = Vector2.new(0.5, 0),
     Position = UDim2.new(0.5, 0, 0, 18),
-    Size = UDim2.new(0, WIDTH, 0, HEADER_H),
+    Size = EXPANDED_SIZE,           -- ← открыто по умолчанию (фикс бага)
     BackgroundColor3 = Color3.fromRGB(15, 13, 22),
     BorderSizePixel = 0,
     ClipsDescendants = true,
@@ -91,7 +94,7 @@ local main = new("Frame", {
 new("UICorner", { CornerRadius = UDim.new(0, 16), Parent = main })
 
 -- Градиентный фон
-local bgGrad = new("UIGradient", {
+new("UIGradient", {
     Rotation = 90,
     Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0.0, Color3.fromRGB(22, 18, 34)),
@@ -116,7 +119,7 @@ local strokeGrad = new("UIGradient", {
     Parent = stroke,
 })
 
--- Свечение (мягкий radial через ImageLabel)
+-- Свечение
 local glow = new("ImageLabel", {
     Image = "rbxassetid://5028857084",
     ImageColor3 = Color3.fromRGB(140, 90, 255),
@@ -126,6 +129,22 @@ local glow = new("ImageLabel", {
     Position = UDim2.new(0.5, 0, 0, 0),
     Size = UDim2.new(1, 80, 1, 80),
     ZIndex = 0,
+    Parent = main,
+})
+
+-- ============================================================
+-- DRAG HANDLE (невидимая полоса для перетаскивания)
+-- ============================================================
+-- Отдельный прозрачный фрейм поверх хедера, но НЕ поверх кнопок справа.
+-- Именно он отвечает за перетаскивание → клики по кнопкам больше не съедаются.
+local dragHandle = new("TextButton", {
+    Name = "DragHandle",
+    BackgroundTransparency = 1,
+    Text = "",
+    AutoButtonColor = false,
+    Position = UDim2.new(0, 0, 0, 0),
+    Size = UDim2.new(1, -105, 0, HEADER_H), -- справа оставляем место под кнопки
+    ZIndex = 5,
     Parent = main,
 })
 
@@ -142,11 +161,10 @@ local dot = new("Frame", {
     Parent = main,
 })
 new("UICorner", { CornerRadius = UDim.new(1, 0), Parent = dot })
-local dotStroke = new("UIStroke", {
+new("UIStroke", {
     Thickness = 1.5, Color = Color3.fromRGB(255,255,255), Transparency = 0.4, Parent = dot
 })
 
--- Пульс точки
 task.spawn(function()
     while dot.Parent do
         tween(dot, 1.2, { Size = UDim2.new(0, 13, 0, 13) }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
@@ -178,21 +196,21 @@ local titleGrad = new("UIGradient", {
     Parent = title,
 })
 
-local subtitle = new("TextLabel", {
+new("TextLabel", {
     BackgroundTransparency = 1,
     Position = UDim2.new(0, 40, 0.5, 12),
     AnchorPoint = Vector2.new(0, 0.5),
     Size = UDim2.new(0, 200, 0, 12),
     Font = Enum.Font.Gotham,
-    Text = "player highlight",
-    TextSize = 10,
+    Text = "player highlight • L - скрыть • RShift - вкл/выкл",
+    TextSize = 9,
     TextColor3 = Color3.fromRGB(150, 150, 175),
     TextXAlignment = Enum.TextXAlignment.Left,
     ZIndex = 3,
     Parent = main,
 })
 
--- Переключатель (вкл/выкл)
+-- Переключатель вкл/выкл подсветки
 local toggleBtn = new("TextButton", {
     Name = "Toggle",
     Size = UDim2.new(0, 46, 0, 24),
@@ -201,7 +219,7 @@ local toggleBtn = new("TextButton", {
     BackgroundColor3 = Color3.fromRGB(140, 90, 255),
     AutoButtonColor = false,
     Text = "",
-    ZIndex = 3,
+    ZIndex = 6,
     Parent = main,
 })
 new("UICorner", { CornerRadius = UDim.new(1, 0), Parent = toggleBtn })
@@ -212,12 +230,12 @@ local toggleKnob = new("Frame", {
     AnchorPoint = Vector2.new(0, 0.5),
     BackgroundColor3 = Color3.fromRGB(255, 255, 255),
     BorderSizePixel = 0,
-    ZIndex = 4,
+    ZIndex = 7,
     Parent = toggleBtn,
 })
 new("UICorner", { CornerRadius = UDim.new(1, 0), Parent = toggleKnob })
 
--- Стрелка раскрытия
+-- Стрелка
 local arrow = new("TextButton", {
     Size = UDim2.new(0, 24, 0, 24),
     Position = UDim2.new(1, -14, 0.5, 0),
@@ -228,12 +246,12 @@ local arrow = new("TextButton", {
     Font = Enum.Font.GothamBold,
     TextSize = 13,
     AutoButtonColor = false,
-    ZIndex = 3,
+    ZIndex = 6,
     Parent = main,
 })
 
 -- ============================================================
--- КОНТЕНТ (раскрывающаяся часть)
+-- КОНТЕНТ
 -- ============================================================
 local content = new("Frame", {
     Name = "Content",
@@ -244,7 +262,6 @@ local content = new("Frame", {
     Parent = main,
 })
 
--- Разделитель
 local sep = new("Frame", {
     Size = UDim2.new(1, -32, 0, 1),
     Position = UDim2.new(0, 16, 0, 0),
@@ -447,7 +464,6 @@ end
 -- ============================================================
 local yCursor = 12
 
--- Цвета
 sectionLabel("ЦВЕТ ПОДСВЕТКИ", yCursor)
 yCursor = yCursor + 20
 
@@ -470,7 +486,7 @@ local presetRow = new("Frame", {
 })
 
 local presetButtons = {}
-local presetLayout = new("UIListLayout", {
+new("UIListLayout", {
     FillDirection = Enum.FillDirection.Horizontal,
     HorizontalAlignment = Enum.HorizontalAlignment.Left,
     VerticalAlignment = Enum.VerticalAlignment.Center,
@@ -478,7 +494,7 @@ local presetLayout = new("UIListLayout", {
     Parent = presetRow,
 })
 
-for i, col in ipairs(presetColors) do
+for _, col in ipairs(presetColors) do
     local btn = new("TextButton", {
         Size = UDim2.new(0, 26, 0, 26),
         BackgroundColor3 = col,
@@ -504,12 +520,10 @@ for i, col in ipairs(presetColors) do
     table.insert(presetButtons, btn)
 end
 
--- Подсветить первый
 tween(presetButtons[1].stroke, 0.15, {Thickness = 2})
 
 yCursor = yCursor + 40
 
--- Тумблеры
 createToggle(yCursor, "🌈 Радужная подсветка", Config.Rainbow, function(s)
     Config.Rainbow = s
 end)
@@ -520,7 +534,6 @@ createToggle(yCursor, "🛡 Игнорировать сокомандников"
 end)
 yCursor = yCursor + 40
 
--- Слайдеры
 createSlider(yCursor, "Прозрачность заливки", Config.FillTransparency, 0, 1,
     function(v) return string.format("%.2f", v) end,
     function(v) Config.FillTransparency = v end)
@@ -536,38 +549,73 @@ createSlider(yCursor, "Макс. дистанция", Config.MaxDistance, 50, 30
     function(v) Config.MaxDistance = v end)
 yCursor = yCursor + 46
 
--- Хоткей-подсказка
 new("TextLabel", {
     BackgroundTransparency = 1,
     Position = UDim2.new(0, 16, 0, yCursor),
-    Size = UDim2.new(1, -32, 0, 18),
+    Size = UDim2.new(1, -32, 0, 30),
     Font = Enum.Font.Gotham,
-    Text = "Хоткей: RightShift — вкл/выкл • ЛКМ по меню — перетащить",
+    Text = "Хоткеи:\nL — показать/скрыть меню   •   RShift — вкл/выкл подсветку",
     TextSize = 10,
     TextColor3 = Color3.fromRGB(120, 120, 145),
     TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Top,
     Parent = content,
 })
 
 -- ============================================================
--- ЛОГИКА РАСКРЫТИЯ
+-- РАСКРЫТИЕ / СКРЫТИЕ
 -- ============================================================
-local expanded = false
+local expanded = true -- открыто по умолчанию
 
 local function setExpanded(state)
     expanded = state
     tween(main, 0.35, {
-        Size = UDim2.new(0, WIDTH, 0, state and (HEADER_H + CONTENT_H) or HEADER_H),
+        Size = state and EXPANDED_SIZE or COLLAPSED_SIZE,
     }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
     tween(arrow, 0.3, { Rotation = state and 180 or 0 })
 end
 
+-- Клик по стрелке (mouse down работает надёжнее чем Click, если рядом drag)
 arrow.MouseButton1Click:Connect(function()
     setExpanded(not expanded)
 end)
 
 -- ============================================================
--- ПЕРЕКЛЮЧАТЕЛЬ ВКЛ/ВЫКЛ
+-- ПЕРЕТАСКИВАНИЕ ЗА ХЕДЕР (dragHandle)
+-- ============================================================
+do
+    local dragging, dragStart, startPos
+
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+           or input.UserInputType == Enum.UserInputType.Touch then
+            dragging  = true
+            dragStart = input.Position
+            startPos  = main.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+           or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            main.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+           or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- ============================================================
+-- ТУМБЛЕР ВКЛ/ВЫКЛ ПОДСВЕТКИ
 -- ============================================================
 local function setToggleVisual(state)
     tween(toggleBtn, 0.22, {
@@ -591,44 +639,19 @@ toggleBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================
--- ПЕРЕТАСКИВАНИЕ
--- ============================================================
-do
-    local dragging, dragStart, startPos
-    main.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-           or input.UserInputType == Enum.UserInputType.Touch then
-            dragging  = true
-            dragStart = input.Position
-            startPos  = main.Position
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-           or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            main.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-           or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-end
-
--- ============================================================
--- ХОТКЕЙ
+-- ХОТКЕИ
 -- ============================================================
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
-    if input.KeyCode == Config.Keybind then
+
+    -- RShift — вкл/выкл подсветку
+    if input.KeyCode == Config.HighlightKey then
         Config.Enabled = not Config.Enabled
         setToggleVisual(Config.Enabled)
+
+    -- L — показать/скрыть меню
+    elseif input.KeyCode == Config.ToggleUIKey then
+        gui.Enabled = not gui.Enabled
     end
 end)
 
@@ -720,27 +743,17 @@ end
 -- ============================================================
 local startTime = tick()
 
-RunService.RenderStepped:Connect(function(dt)
+RunService.RenderStepped:Connect(function()
     local t = tick() - startTime
 
-    -- Анимация градиента обводки
-    strokeGrad.Rotation = (t * 80) % 360
-
-    -- Анимация градиента заголовка
-    titleGrad.Offset = Vector2.new((math.sin(t * 1.2) + 1) * 0.25, 0)
-
-    -- Лёгкое "дыхание" свечения
+    strokeGrad.Rotation   = (t * 80) % 360
+    titleGrad.Offset      = Vector2.new((math.sin(t * 1.2) + 1) * 0.25, 0)
     glow.ImageTransparency = 0.5 + math.sin(t * 1.5) * 0.12
     glow.Size = UDim2.new(1, 80 + math.sin(t * 1.5) * 8, 1, 80 + math.sin(t * 1.5) * 8)
 
-    -- Подсветка игроков
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer then
             updatePlayer(p)
         end
     end
 end)
-
--- Открыть меню сразу
-task.wait(0.1)
-setExpanded(true)
