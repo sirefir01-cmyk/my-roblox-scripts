@@ -1,6 +1,5 @@
 -- ============================================
--- AIMBOT MENU v2 — SIDEBAR EDITION
--- Base layout: 1920x1200 scaled by 1/1.4 => 1371x857
+-- VIOLENCE DISTRICT | AIMBOT + ESP | ALPHA v0.1
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -14,31 +13,39 @@ local Camera = workspace.CurrentCamera
 
 -- ==================== КОНФИГ ====================
 local Config = {
+    -- Aimbot
     AimbotEnabled = false,
-    AimKey = Enum.UserInputType.MouseButton2,
+    AimMode = "Revolver", -- "Revolver" или "Flashlight"
     Smoothness = 0.15,
     FOV = 150,
     ShowFOV = true,
     TeamCheck = true,
     WallCheck = false,
     Prediction = 0.16,
-    TargetPart = "Head",
     MaxDistance = 1000,
+    -- Смещение для фонарика
+    FlashlightOffsetX = 30,
+    FlashlightOffsetY = -20,
+    -- ESP
+    ESP_Survivors = false,
+    ESP_Killers = false,
+    ESP_SurvivorColor = Color3.fromRGB(0, 255, 100),
+    ESP_KillerColor = Color3.fromRGB(255, 50, 50),
 }
 
--- ==================== РАЗМЕРЫ (базовый макет 1920x1200 / 1.4) ====================
+-- ==================== РАЗМЕРЫ ====================
 local BASE_W, BASE_H = 1920, 1200
 local SCALE = 1 / 1.4
-local MENU_W = math.floor(BASE_W * SCALE)   -- 1371
-local MENU_H = math.floor(BASE_H * SCALE)   -- 857
+local MENU_W = math.floor(BASE_W * SCALE)
+local MENU_H = math.floor(BASE_H * SCALE)
 
 -- ==================== ЗАЩИТА ====================
-if CoreGui:FindFirstChild("AimMenuGUI") then
-    CoreGui.AimMenuGUI:Destroy()
+if CoreGui:FindFirstChild("VD_Alpha_GUI") then
+    CoreGui.VD_Alpha_GUI:Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AimMenuGUI"
+ScreenGui.Name = "VD_Alpha_GUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = CoreGui
@@ -55,8 +62,8 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 500, 0, 60)
 Title.Position = UDim2.new(0.5, -250, 0.4, -70)
 Title.BackgroundTransparency = 1
-Title.Text = "AIMBOT LOADER"
-Title.TextColor3 = Color3.fromRGB(120, 200, 255)
+Title.Text = "VIOLENCE DISTRICT | ALPHA"
+Title.TextColor3 = Color3.fromRGB(255, 100, 100)
 Title.TextScaled = true
 Title.Font = Enum.Font.GothamBold
 Title.ZIndex = 101
@@ -72,7 +79,7 @@ BarBG.Parent = LoadingFrame
 
 local BarFill = Instance.new("Frame")
 BarFill.Size = UDim2.new(0, 0, 1, 0)
-BarFill.BackgroundColor3 = Color3.fromRGB(120, 200, 255)
+BarFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
 BarFill.BorderSizePixel = 0
 BarFill.ZIndex = 102
 BarFill.Parent = BarBG
@@ -89,12 +96,11 @@ StatusLabel.ZIndex = 101
 StatusLabel.Parent = LoadingFrame
 
 local Stages = {
-    {text = "Загрузка модулей...",       time = 0.5},
-    {text = "Проверка окружения...",     time = 0.4},
-    {text = "Инициализация аимбота...",  time = 0.6},
-    {text = "Загрузка конфига...",       time = 0.4},
-    {text = "Подключение к серверу...",  time = 0.5},
-    {text = "Готово!",                   time = 0.4},
+    {text = "Загрузка модулей...",       time = 0.4},
+    {text = "Проверка окружения...",     time = 0.3},
+    {text = "Инициализация Aimbot...",   time = 0.4},
+    {text = "Инициализация ESP...",      time = 0.4},
+    {text = "Готово!",                   time = 0.3},
 }
 
 task.spawn(function()
@@ -129,7 +135,7 @@ MenuCorner.CornerRadius = UDim.new(0, 12)
 MenuCorner.Parent = Menu
 
 local MenuStroke = Instance.new("UIStroke")
-MenuStroke.Color = Color3.fromRGB(120, 200, 255)
+MenuStroke.Color = Color3.fromRGB(255, 100, 100)
 MenuStroke.Thickness = 1.5
 MenuStroke.Transparency = 0.4
 MenuStroke.Parent = Menu
@@ -157,14 +163,13 @@ local HeaderTitle = Instance.new("TextLabel")
 HeaderTitle.Size = UDim2.new(1, -150, 1, 0)
 HeaderTitle.Position = UDim2.new(0, 20, 0, 0)
 HeaderTitle.BackgroundTransparency = 1
-HeaderTitle.Text = "🎯  AIMBOT  •  v2.0"
-HeaderTitle.TextColor3 = Color3.fromRGB(120, 200, 255)
+HeaderTitle.Text = "🔪  VIOLENCE DISTRICT  •  ALPHA"
+HeaderTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
 HeaderTitle.TextSize = 20
 HeaderTitle.Font = Enum.Font.GothamBold
 HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
 HeaderTitle.Parent = Header
 
--- Кнопка закрытия
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 34, 0, 34)
 CloseBtn.Position = UDim2.new(1, -46, 0, 10)
@@ -180,7 +185,7 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseBtn
 
--- ==================== САЙДБАР (список категорий) ====================
+-- ==================== САЙДБАР ====================
 local SIDEBAR_W = 220
 local Sidebar = Instance.new("Frame")
 Sidebar.Name = "Sidebar"
@@ -206,7 +211,7 @@ SidebarPad.PaddingRight = UDim.new(0, 10)
 SidebarPad.PaddingBottom = UDim.new(0, 10)
 SidebarPad.Parent = Sidebar
 
--- ==================== КОНТЕНТ (страницы) ====================
+-- ==================== КОНТЕНТ ====================
 local Content = Instance.new("Frame")
 Content.Name = "Content"
 Content.Size = UDim2.new(1, -(SIDEBAR_W + 30), 1, -(HEADER_H + 20))
@@ -244,7 +249,7 @@ local function CreateToggle(parent, name, default, callback)
     local ToggleBtn = Instance.new("TextButton")
     ToggleBtn.Size = UDim2.new(0, 48, 0, 24)
     ToggleBtn.Position = UDim2.new(1, -62, 0.5, -12)
-    ToggleBtn.BackgroundColor3 = default and Color3.fromRGB(120, 200, 255) or Color3.fromRGB(50, 50, 60)
+    ToggleBtn.BackgroundColor3 = default and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(50, 50, 60)
     ToggleBtn.Text = ""
     ToggleBtn.BorderSizePixel = 0
     ToggleBtn.Parent = Frame
@@ -268,7 +273,7 @@ local function CreateToggle(parent, name, default, callback)
     ToggleBtn.MouseButton1Click:Connect(function()
         state = not state
         TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
-            BackgroundColor3 = state and Color3.fromRGB(120, 200, 255) or Color3.fromRGB(50, 50, 60)
+            BackgroundColor3 = state and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(50, 50, 60)
         }):Play()
         TweenService:Create(Circle, TweenInfo.new(0.2), {
             Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
@@ -312,7 +317,7 @@ local function CreateSlider(parent, name, min, max, default, callback)
 
     local SliderFill = Instance.new("Frame")
     SliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-    SliderFill.BackgroundColor3 = Color3.fromRGB(120, 200, 255)
+    SliderFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
     SliderFill.BorderSizePixel = 0
     SliderFill.Parent = SliderBG
 
@@ -378,7 +383,7 @@ local function CreateDropdown(parent, name, options, default, callback)
     Btn.Position = UDim2.new(1, -256, 0, 8)
     Btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
     Btn.Text = default .. "  ▼"
-    Btn.TextColor3 = Color3.fromRGB(120, 200, 255)
+    Btn.TextColor3 = Color3.fromRGB(255, 100, 100)
     Btn.TextSize = 13
     Btn.Font = Enum.Font.Gotham
     Btn.BorderSizePixel = 0
@@ -445,7 +450,7 @@ local function CreatePage(id)
     Scroll.BackgroundTransparency = 1
     Scroll.BorderSizePixel = 0
     Scroll.ScrollBarThickness = 4
-    Scroll.ScrollBarImageColor3 = Color3.fromRGB(120, 200, 255)
+    Scroll.ScrollBarImageColor3 = Color3.fromRGB(255, 100, 100)
     Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
     Scroll.Visible = false
@@ -464,10 +469,9 @@ local function CreatePage(id)
     return Scroll
 end
 
-local PageCombat   = CreatePage("Combat")
-local PageVisual   = CreatePage("Visual")
-local PageMisc     = CreatePage("Misc")
-local PageSettings = CreatePage("Settings")
+local PageAimbot = CreatePage("Aimbot")
+local PageESP = CreatePage("ESP")
+local PageMisc = CreatePage("Misc")
 
 -- ==================== КНОПКИ КАТЕГОРИЙ ====================
 local function CreateCategoryButton(name, icon, page)
@@ -487,7 +491,7 @@ local function CreateCategoryButton(name, icon, page)
     local Indicator = Instance.new("Frame")
     Indicator.Size = UDim2.new(0, 3, 0.55, 0)
     Indicator.Position = UDim2.new(0, 0, 0.225, 0)
-    Indicator.BackgroundColor3 = Color3.fromRGB(120, 200, 255)
+    Indicator.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
     Indicator.BorderSizePixel = 0
     Indicator.BackgroundTransparency = 1
     Indicator.Parent = Btn
@@ -512,7 +516,7 @@ local function CreateCategoryButton(name, icon, page)
             BackgroundColor3 = active and Color3.fromRGB(35, 35, 50) or Color3.fromRGB(22, 22, 30)
         }):Play()
         TweenService:Create(Lbl, TweenInfo.new(0.2), {
-            TextColor3 = active and Color3.fromRGB(120, 200, 255) or Color3.fromRGB(170, 170, 190)
+            TextColor3 = active and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(170, 170, 190)
         }):Play()
         TweenService:Create(Indicator, TweenInfo.new(0.2), {
             BackgroundTransparency = active and 0 or 1
@@ -534,124 +538,52 @@ local function CreateCategoryButton(name, icon, page)
     CategoryButtons[name] = {setActive = setActive, button = Btn, page = page}
 end
 
--- Регистрация категорий
-CreateCategoryButton("Combat",   "⚔",  PageCombat)
-CreateCategoryButton("Visual",   "👁",  PageVisual)
-CreateCategoryButton("Misc",     "🎲",  PageMisc)
-CreateCategoryButton("Settings", "⚙",  PageSettings)
+CreateCategoryButton("Aimbot", "🎯", PageAimbot)
+CreateCategoryButton("ESP", "👁", PageESP)
+CreateCategoryButton("Misc", "🎲", PageMisc)
 
--- Регистрация страниц в таблицу
-Pages["Combat"]   = PageCombat
-Pages["Visual"]   = PageVisual
-Pages["Misc"]     = PageMisc
-Pages["Settings"] = PageSettings
+Pages["Aimbot"] = PageAimbot
+Pages["ESP"] = PageESP
+Pages["Misc"] = PageMisc
 
--- ==================== НАПОЛНЕНИЕ: COMBAT (AIM) ====================
-CreateToggle(PageCombat, "🎯  Включить аимбот", Config.AimbotEnabled, function(v) Config.AimbotEnabled = v end)
-CreateDropdown(PageCombat, "Клавиша активации", {"MouseButton2 (ПКМ)", "MouseButton1 (ЛКМ)", "E", "Q", "Shift"}, "MouseButton2 (ПКМ)", function(v)
-    local map = {
-        ["MouseButton2 (ПКМ)"] = Enum.UserInputType.MouseButton2,
-        ["MouseButton1 (ЛКМ)"] = Enum.UserInputType.MouseButton1,
-        ["E"] = Enum.KeyCode.E,
-        ["Q"] = Enum.KeyCode.Q,
-        ["Shift"] = Enum.KeyCode.LeftShift,
-    }
-    Config.AimKey = map[v] or Enum.UserInputType.MouseButton2
+-- ==================== НАПОЛНЕНИЕ: AIMBOT ====================
+CreateToggle(PageAimbot, "🎯  Включить аимбот", Config.AimbotEnabled, function(v) Config.AimbotEnabled = v end)
+CreateDropdown(PageAimbot, "Режим (Предмет)", {"Revolver", "Flashlight"}, Config.AimMode, function(v)
+    Config.AimMode = v
+    print("[VD Alpha] Режим аимбота: " .. v)
 end)
-CreateDropdown(PageCombat, "Часть тела цели", {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, Config.TargetPart, function(v) Config.TargetPart = v end)
-CreateSlider(PageCombat, "Smoothness (плавность)", 0.01, 1, Config.Smoothness, function(v) Config.Smoothness = v end)
-CreateSlider(PageCombat, "FOV (радиус)", 10, 500, Config.FOV, function(v) Config.FOV = v end)
-CreateSlider(PageCombat, "Prediction (предсказание)", 0, 0.5, Config.Prediction, function(v) Config.Prediction = v end)
-CreateSlider(PageCombat, "Max Distance", 50, 2000, Config.MaxDistance, function(v) Config.MaxDistance = v end)
-CreateToggle(PageCombat, "🛡  Team Check (игнор своих)", Config.TeamCheck, function(v) Config.TeamCheck = v end)
-CreateToggle(PageCombat, "🧱  Wall Check (только в прямой видимости)", Config.WallCheck, function(v) Config.WallCheck = v end)
+CreateSlider(PageAimbot, "Smoothness (плавность)", 0.01, 1, Config.Smoothness, function(v) Config.Smoothness = v end)
+CreateSlider(PageAimbot, "FOV (радиус)", 10, 500, Config.FOV, function(v) Config.FOV = v end)
+CreateSlider(PageAimbot, "Prediction", 0, 0.5, Config.Prediction, function(v) Config.Prediction = v end)
+CreateSlider(PageAimbot, "Max Distance", 50, 2000, Config.MaxDistance, function(v) Config.MaxDistance = v end)
+CreateToggle(PageAimbot, "🛡  Team Check", Config.TeamCheck, function(v) Config.TeamCheck = v end)
+CreateToggle(PageAimbot, "🧱  Wall Check", Config.WallCheck, function(v) Config.WallCheck = v end)
+-- Смещение для фонарика
+CreateSlider(PageAimbot, "Фонарик: Смещение X (вправо)", -100, 100, Config.FlashlightOffsetX, function(v) Config.FlashlightOffsetX = v end)
+CreateSlider(PageAimbot, "Фонарик: Смещение Y (вверх)", -100, 100, Config.FlashlightOffsetY, function(v) Config.FlashlightOffsetY = v end)
 
--- ==================== НАПОЛНЕНИЕ: VISUAL ====================
-CreateToggle(PageVisual, "👁  Показывать FOV круг", Config.ShowFOV, function(v) Config.ShowFOV = v end)
-CreateToggle(PageVisual, "🎯  Точка прицела (center dot)", false, function(v)
-    -- пример: заглушка, ничего не делает
-end)
-CreateToggle(PageVisual, "💡  Highlight цели (подсветка)", false, function(v)
-    -- пример: заглушка
-end)
-CreateSlider(PageVisual, "Прозрачность FOV круга", 0, 1, 0.3, function(v)
-    if FOVStroke then FOVStroke.Transparency = v end
-end)
+-- ==================== НАПОЛНЕНИЕ: ESP ====================
+CreateToggle(PageESP, "🟢  ESP Выживших", Config.ESP_Survivors, function(v) Config.ESP_Survivors = v end)
+CreateToggle(PageESP, "🔴  ESP Убийц", Config.ESP_Killers, function(v) Config.ESP_Killers = v end)
+-- Цвета можно сделать через текстовые поля или просто оставить дефолтными. 
+-- Для альфы оставим фиксированные цвета, но добавим подсказку.
+local ESPInfo = Instance.new("TextLabel")
+ESPInfo.Size = UDim2.new(1, 0, 0, 60)
+ESPInfo.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+ESPInfo.BorderSizePixel = 0
+ESPInfo.Text = "Цвета ESP (фиксированные для альфы):\nВыжившие — зелёный, Убийцы — красный"
+ESPInfo.TextColor3 = Color3.fromRGB(180, 180, 200)
+ESPInfo.TextSize = 13
+ESPInfo.Font = Enum.Font.Gotham
+ESPInfo.Parent = PageESP
+
+local EICorner = Instance.new("UICorner")
+EICorner.CornerRadius = UDim.new(0, 6)
+EICorner.Parent = ESPInfo
 
 -- ==================== НАПОЛНЕНИЕ: MISC ====================
-CreateToggle(PageMisc, "🚀  Auto-strafe (заглушка)", false, function(v) end)
-CreateToggle(PageMisc, "📡  Server-hop (заглушка)", false, function(v) end)
-CreateSlider(PageMisc, "Игровой FPS-буст (заглушка)", 0, 100, 50, function(v) end)
-
--- ==================== НАПОЛНЕНИЕ: SETTINGS ====================
--- Кнопка Reset
-local ResetFrame = Instance.new("Frame")
-ResetFrame.Size = UDim2.new(1, 0, 0, 46)
-ResetFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-ResetFrame.BorderSizePixel = 0
-ResetFrame.Parent = PageSettings
-
-local RFCorner = Instance.new("UICorner")
-RFCorner.CornerRadius = UDim.new(0, 6)
-RFCorner.Parent = ResetFrame
-
-local ResetBtn = Instance.new("TextButton")
-ResetBtn.Size = UDim2.new(0, 220, 0, 30)
-ResetBtn.Position = UDim2.new(1, -236, 0, 8)
-ResetBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
-ResetBtn.Text = "Сбросить конфиг"
-ResetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ResetBtn.TextSize = 14
-ResetBtn.Font = Enum.Font.GothamMedium
-ResetBtn.BorderSizePixel = 0
-ResetBtn.Parent = ResetFrame
-
-local RBCorner = Instance.new("UICorner")
-RBCorner.CornerRadius = UDim.new(0, 6)
-RBCorner.Parent = ResetBtn
-
-local ResetLabel = Instance.new("TextLabel")
-ResetLabel.Size = UDim2.new(0.5, 0, 1, 0)
-ResetLabel.Position = UDim2.new(0, 16, 0, 0)
-ResetLabel.BackgroundTransparency = 1
-ResetLabel.Text = "♻  Сбросить все настройки"
-ResetLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
-ResetLabel.TextSize = 15
-ResetLabel.Font = Enum.Font.Gotham
-ResetLabel.TextXAlignment = Enum.TextXAlignment.Left
-ResetLabel.Parent = ResetFrame
-
-ResetBtn.MouseButton1Click:Connect(function()
-    Config.AimbotEnabled = false
-    Config.Smoothness = 0.15
-    Config.FOV = 150
-    Config.Prediction = 0.16
-    Config.TeamCheck = true
-    Config.WallCheck = false
-    Config.MaxDistance = 1000
-    Config.TargetPart = "Head"
-    print("[AimMenu] Конфиг сброшен")
-end)
-
--- Инфо-лейбл
-local InfoLabel = Instance.new("TextLabel")
-InfoLabel.Size = UDim2.new(1, 0, 0, 60)
-InfoLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-InfoLabel.BorderSizePixel = 0
-InfoLabel.Text = "AimMenu v2.0  •  L — открыть/закрыть меню\nПКМ (или выбранная клавиша) — активация аимбота"
-InfoLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
-InfoLabel.TextSize = 13
-InfoLabel.Font = Enum.Font.Gotham
-InfoLabel.Parent = PageSettings
-
-local ILCorner = Instance.new("UICorner")
-ILCorner.CornerRadius = UDim.new(0, 6)
-ILCorner.Parent = InfoLabel
-
--- Активируем первую категорию
-CategoryButtons["Combat"].setActive(true)
-CurrentCategory = "Combat"
-PageCombat.Visible = true
+CreateToggle(PageMisc, "🚀  Скорость (заглушка)", false, function(v) end)
+CreateToggle(PageMisc, "🦘  Прыжок (заглушка)", false, function(v) end)
 
 -- ==================== FOV КРУГ ====================
 local FOVCircle = Instance.new("Frame")
@@ -669,7 +601,7 @@ FOVCorner.CornerRadius = UDim.new(1, 0)
 FOVCorner.Parent = FOVCircle
 
 local FOVStroke = Instance.new("UIStroke")
-FOVStroke.Color = Color3.fromRGB(120, 200, 255)
+FOVStroke.Color = Color3.fromRGB(255, 100, 100)
 FOVStroke.Thickness = 1.5
 FOVStroke.Transparency = 0.3
 FOVStroke.Parent = FOVCircle
@@ -684,12 +616,12 @@ local aiming = false
 
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
-    if input.UserInputType == Config.AimKey or input.KeyCode == Config.AimKey then
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
         aiming = true
     end
 end)
 UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Config.AimKey or input.KeyCode == Config.AimKey then
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
         aiming = false
     end
 end)
@@ -721,7 +653,7 @@ local function getClosestTarget()
         if not onScreen then continue end
         local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
         if dist2D < closestDist then
-            local targetPart = player.Character:FindFirstChild(Config.TargetPart) or hrp
+            local targetPart = player.Character:FindFirstChild("Head") or hrp
             if isVisible(targetPart) then
                 closest = targetPart
                 closestDist = dist2D
@@ -735,12 +667,135 @@ RunService.RenderStepped:Connect(function()
     if not Config.AimbotEnabled or not aiming then return end
     local target = getClosestTarget()
     if not target then return end
+    
     local targetPos = target.Position
+    
+    -- Prediction
     if Config.Prediction > 0 then
         targetPos = targetPos + target.Velocity * Config.Prediction
     end
+    
+    -- Смещение для фонарика
+    if Config.AimMode == "Flashlight" then
+        -- Преобразуем смещение в мировые координаты относительно камеры
+        local right = Camera.CFrame.RightVector
+        local up = Camera.CFrame.UpVector
+        targetPos = targetPos + right * (Config.FlashlightOffsetX / 100) + up * (Config.FlashlightOffsetY / 100)
+    end
+    
     local aimCFrame = CFrame.new(Camera.CFrame.Position, targetPos)
     Camera.CFrame = Camera.CFrame:Lerp(aimCFrame, Config.Smoothness)
+end)
+
+-- ==================== ЛОГИКА ESP ====================
+local espCache = {} -- [player] = {highlight = Highlight, team = "Survivor"/"Killer"}
+
+-- Универсальная функция для определения команды игрока.
+-- ВНИМАНИЕ: Это ОЧЕНЬ условная эвристика для альфа-версии. 
+-- В реальном "Районе насилия" нужно смотреть, как именно игра назначает команды.
+local function getTeamType(player)
+    -- Приоритет 1: Проверка через TeamColor или Team (если игра использует стандартную систему)
+    if player.Team then
+        local teamName = player.Team.Name:lower()
+        if teamName:find("killer") or teamName:find("убийца") or teamName:find("slasher") then
+            return "Killer"
+        elseif teamName:find("survivor") or teamName:find("выжив") or teamName:find("runner") then
+            return "Survivor"
+        end
+    end
+    -- Приоритет 2: Проверка по имени игрока (если в игре есть префиксы)
+    local name = player.Name:lower()
+    if name:find("killer") then return "Killer" end
+    if name:find("survivor") then return "Survivor" end
+    
+    -- По умолчанию считаем выжившим, чтобы не пропустить цель
+    return "Survivor"
+end
+
+local function createESP(player)
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local teamType = getTeamType(player)
+    local color = (teamType == "Killer") and Config.ESP_KillerColor or Config.ESP_SurvivorColor
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "VD_ESP_Highlight"
+    highlight.Adornee = character
+    highlight.FillColor = color
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = Color3.new(1, 1, 1)
+    highlight.OutlineTransparency = 0.3
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Enabled = false -- Включается в цикле RenderStepped
+    highlight.Parent = character
+    
+    espCache[player] = {highlight = highlight, team = teamType}
+end
+
+local function removeESP(player)
+    if espCache[player] then
+        if espCache[player].highlight then
+            espCache[player].highlight:Destroy()
+        end
+        espCache[player] = nil
+    end
+end
+
+-- Отслеживание добавления/удаления игроков
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0.5) -- Небольшая задержка, чтобы персонаж прогрузился
+        if espCache[player] then removeESP(player) end
+        if Config.ESP_Survivors or Config.ESP_Killers then
+            createESP(player)
+        end
+    end)
+end)
+
+Players.PlayerRemoving:Connect(removeESP)
+
+-- Основной цикл обновления ESP
+RunService.RenderStepped:Connect(function()
+    -- Если оба тумблера выключены, просто скрываем всё и выходим
+    if not Config.ESP_Survivors and not Config.ESP_Killers then
+        for player, data in pairs(espCache) do
+            if data.highlight then data.highlight.Enabled = false end
+        end
+        return
+    end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        local data = espCache[player]
+        
+        -- Если ESP для игрока ещё не создан, но он в игре и жив — создаём
+        if not data and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            createESP(player)
+            data = espCache[player]
+        end
+        
+        if data and data.highlight then
+            local character = player.Character
+            -- Проверяем, жив ли персонаж
+            if character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
+                -- Обновляем цвет и видимость в зависимости от текущей команды и настроек
+                local currentTeam = getTeamType(player)
+                if currentTeam ~= data.team then
+                    -- Команда изменилась, обновляем
+                    data.team = currentTeam
+                    data.highlight.FillColor = (currentTeam == "Killer") and Config.ESP_KillerColor or Config.ESP_SurvivorColor
+                end
+                
+                local shouldShow = (currentTeam == "Killer" and Config.ESP_Killers) or (currentTeam == "Survivor" and Config.ESP_Survivors)
+                data.highlight.Enabled = shouldShow
+                data.highlight.Adornee = character -- На случай респавна
+            else
+                data.highlight.Enabled = false
+            end
+        end
+    end
 end)
 
 -- ==================== ПЕРЕТАСКИВАНИЕ ====================
@@ -766,11 +821,10 @@ end)
 local menuOpen = false
 local menuReady = false
 
-task.delay(4, function()
+task.delay(3, function()
     menuReady = true
     Menu.Visible = true
     menuOpen = true
-    -- Анимация появления
     Menu.Size = UDim2.new(0, 0, 0, 0)
     Menu.Position = UDim2.new(0.5, 0, 0.5, 0)
     TweenService:Create(Menu, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
@@ -808,3 +862,5 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         toggleMenu()
     end
 end)
+
+print("[VD Alpha] Скрипт загружен. Нажми L чтобы открыть меню.")
