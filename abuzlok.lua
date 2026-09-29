@@ -1,8 +1,7 @@
 --[[
-    Violence District Cheat Script
-    Features: ESP | Infinite Heal | Fly | Noclip
+    Violence District Hub v2
+    Features: ESP | Infinite Heal | Fly | Noclip | Auto Skill Check | Custom Keybinds
     Author: Custom
-    WARNING: Use at your own risk. Violates Roblox ToS.
 --]]
 
 local Players            = game:GetService("Players")
@@ -21,6 +20,17 @@ local Config = {
     Fly          = false,
     FlySpeed     = 60,
     Noclip       = false,
+    AutoSkill    = true,
+}
+
+-- Хоткеи (можно менять в меню)
+local Keybinds = {
+    ESP          = Enum.KeyCode.RightControl, -- пример, ESP обычно всегда вкл
+    InfiniteHeal = Enum.KeyCode.H,
+    Fly          = Enum.KeyCode.F,
+    Noclip       = Enum.KeyCode.N,
+    AutoSkill    = Enum.KeyCode.G,
+    ToggleMenu   = Enum.KeyCode.RightShift,
 }
 
 -- ============ GUI ============
@@ -28,59 +38,181 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "VD_Hub"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder = 9999
 ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 220, 0, 260)
+Main.Size = UDim2.new(0, 260, 0, 420)
 Main.Position = UDim2.new(0, 20, 0, 100)
-Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+Main.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
 Main.BorderSizePixel = 0
 Main.Active = true
-Main.Draggable = true
+Main.ClipsDescendants = true
 Main.Parent = ScreenGui
 
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 8)
-Corner.Parent = Main
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = Main
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 32)
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-Title.Text = "Violence District | Hub"
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(80, 80, 100)
+MainStroke.Thickness = 1
+MainStroke.Parent = Main
+
+-- ===== TITLE BAR (drag zone) =====
+local Title = Instance.new("TextButton")
+Title.Size = UDim2.new(1, 0, 0, 36)
+Title.BackgroundColor3 = Color3.fromRGB(38, 38, 50)
+Title.Text = "  Violence District | Hub"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.AutoButtonColor = false
 Title.Parent = Main
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.CornerRadius = UDim.new(0, 10)
 TitleCorner.Parent = Title
 
--- ============ TOGGLE ============
-local yOffset = 40
-local function makeToggle(label, default, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.9, 0, 0, 34)
-    btn.Position = UDim2.new(0.05, 0, 0, yOffset)
-    btn.BackgroundColor3 = default and Color3.fromRGB(0, 140, 70) or Color3.fromRGB(140, 40, 40)
-    btn.Text = label .. ": " .. (default and "ON" or "OFF")
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 13
-    btn.Parent = Main
+-- ===== CUSTOM DRAG (нормальный, не Roblox Draggable) =====
+local dragging, dragStart, startPos = false, nil, nil
 
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 6)
-    c.Parent = btn
+Title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+       or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
 
-    btn.MouseButton1Click:Connect(function()
-        default = not default
-        btn.BackgroundColor3 = default and Color3.fromRGB(0, 140, 70) or Color3.fromRGB(140, 40, 40)
-        btn.Text = label .. ": " .. (default and "ON" or "OFF")
-        callback(default)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+       or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- ===== SCROLL FRAME для тогглов =====
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, 0, 1, -36)
+Scroll.Position = UDim2.new(0, 0, 0, 36)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 4
+Scroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 140)
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Scroll.Parent = Main
+
+local UIList = Instance.new("UIListLayout")
+UIList.Padding = UDim.new(0, 6)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.Parent = Scroll
+
+local UIPad = Instance.new("UIPadding")
+UIPad.PaddingTop = UDim.new(0, 8)
+UIPad.PaddingLeft = UDim.new(0, 8)
+UIPad.PaddingRight = UDim.new(0, 8)
+UIPad.PaddingBottom = UDim.new(0, 8)
+UIPad.Parent = Scroll
+
+-- ============ TOGGLE BUILDER с биндом ============
+local function makeToggle(label, key, getter, setter)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 34)
+    row.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+    row.BorderSizePixel = 0
+    row.Parent = Scroll
+
+    local rc = Instance.new("UICorner")
+    rc.CornerRadius = UDim.new(0, 6)
+    rc.Parent = row
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.5, 0, 1, 0)
+    lbl.Position = UDim2.new(0, 8, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    -- Кнопка бинда
+    local bindBtn = Instance.new("TextButton")
+    bindBtn.Size = UDim2.new(0, 44, 0, 24)
+    bindBtn.Position = UDim2.new(1, -114, 0.5, -12)
+    bindBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    bindBtn.Text = key.Name
+    bindBtn.TextColor3 = Color3.fromRGB(255, 220, 90)
+    bindBtn.Font = Enum.Font.GothamBold
+    bindBtn.TextSize = 11
+    bindBtn.Parent = row
+
+    local bc = Instance.new("UICorner")
+    bc.CornerRadius = UDim.new(0, 5)
+    bc.Parent = bindBtn
+
+    -- Toggle-кнопка
+    local tog = Instance.new("TextButton")
+    tog.Size = UDim2.new(0, 52, 0, 24)
+    tog.Position = UDim2.new(1, -62, 0.5, -12)
+    tog.BackgroundColor3 = getter() and Color3.fromRGB(0, 150, 75) or Color3.fromRGB(140, 40, 40)
+    tog.Text = getter() and "ON" or "OFF"
+    tog.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tog.Font = Enum.Font.GothamBold
+    tog.TextSize = 11
+    tog.Parent = row
+
+    local tc = Instance.new("UICorner")
+    tc.CornerRadius = UDim.new(0, 5)
+    tc.Parent = tog
+
+    -- binding state
+    local binding = false
+
+    bindBtn.MouseButton1Click:Connect(function()
+        binding = true
+        bindBtn.Text = "..."
+        bindBtn.BackgroundColor3 = Color3.fromRGB(180, 140, 0)
     end)
 
-    yOffset = yOffset + 38
+    UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if binding and input.UserInputType == Enum.UserInputType.Keyboard then
+            Keybinds[label] = input.KeyCode
+            bindBtn.Text = input.KeyCode.Name
+            bindBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            binding = false
+        end
+    end)
+
+    local function refresh()
+        local state = getter()
+        tog.Text = state and "ON" or "OFF"
+        tog.BackgroundColor3 = state and Color3.fromRGB(0, 150, 75) or Color3.fromRGB(140, 40, 40)
+    end
+
+    tog.MouseButton1Click:Connect(function()
+        setter(not getter())
+        refresh()
+    end)
+
+    return refresh
 end
 
 -- ============ ESP ============
@@ -94,14 +226,13 @@ local function buildESP(player)
     local hum  = char:FindFirstChildOfClass("Humanoid")
     if not root or not hum then return end
 
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "VD_ESP"
-    highlight.FillColor = Config.ESPColor
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.FillTransparency = 0.55
-    highlight.OutlineTransparency = 0
-    highlight.Adornee = char
-    highlight.Parent = char
+    local hl = Instance.new("Highlight")
+    hl.Name = "VD_ESP"
+    hl.FillColor = Config.ESPColor
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.FillTransparency = 0.55
+    hl.Adornee = char
+    hl.Parent = char
 
     local bb = Instance.new("BillboardGui")
     bb.Name = "VD_BB"
@@ -132,7 +263,7 @@ local function buildESP(player)
     infoL.TextSize = 12
     infoL.Parent = bb
 
-    ESPData[player] = {Highlight=highlight, BB=bb, Info=infoL, Hum=hum, Root=root, Char=char}
+    ESPData[player] = {Highlight=hl, BB=bb, Info=infoL, Char=char}
 end
 
 local function destroyESP(player)
@@ -143,7 +274,6 @@ local function destroyESP(player)
     end
 end
 
--- ESP обновление
 RunService.RenderStepped:Connect(function()
     if not Config.ESP then return end
     for plr, data in pairs(ESPData) do
@@ -179,7 +309,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Подключаем игроков
 local function hookPlayer(plr)
     if plr == LocalPlayer then return end
     plr.CharacterAdded:Connect(function()
@@ -197,22 +326,15 @@ Players.PlayerAdded:Connect(hookPlayer)
 Players.PlayerRemoving:Connect(destroyESP)
 
 -- ============ INFINITE HEAL ============
--- Прямое восстановление HP каждый кадр.
--- Дополнительно пытаемся вызывать возможные heal-ремоуты, если найдутся.
 local healRemotes = {}
-
-local function collectHealRemotes()
-    for _, obj in ipairs(game:GetDescendants()) do
-        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            local n = obj.Name:lower()
-            if n:find("heal") or n:find("regen") or n:find("health") or n:find("revive") then
-                table.insert(healRemotes, obj)
-            end
+for _, obj in ipairs(game:GetDescendants()) do
+    if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+        local n = obj.Name:lower()
+        if n:find("heal") or n:find("regen") or n:find("health") or n:find("revive") then
+            table.insert(healRemotes, obj)
         end
     end
 end
-
-collectHealRemotes()
 
 task.spawn(function()
     while task.wait(0.05) do
@@ -223,14 +345,9 @@ task.spawn(function()
         if hum and hum.Health > 0 and hum.Health < hum.MaxHealth then
             hum.Health = hum.MaxHealth
         end
-        -- попытка прожать heal-ремоуты (если игра использует их)
         for _, r in ipairs(healRemotes) do
             pcall(function()
-                if r:IsA("RemoteEvent") then
-                    r:FireServer()
-                else
-                    r:InvokeServer()
-                end
+                if r:IsA("RemoteEvent") then r:FireServer() else r:InvokeServer() end
             end)
         end
     end
@@ -259,13 +376,11 @@ local function startFly()
     if not root or not hum then return end
 
     flyBV = Instance.new("BodyVelocity")
-    flyBV.Name = "VD_FlyBV"
     flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
     flyBV.Velocity = Vector3.zero
     flyBV.Parent = root
 
     flyBG = Instance.new("BodyGyro")
-    flyBG.Name = "VD_FlyBG"
     flyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
     flyBG.P = 1e4
     flyBG.CFrame = root.CFrame
@@ -274,10 +389,7 @@ local function startFly()
     hum.PlatformStand = true
 
     flyConn = RunService.RenderStepped:Connect(function()
-        if not Config.Fly or not root.Parent then
-            stopFly()
-            return
-        end
+        if not Config.Fly or not root.Parent then stopFly() return end
         local dir = Vector3.zero
         local cf  = Camera.CFrame
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cf.LookVector end
@@ -306,17 +418,87 @@ local function startNoclip()
         local char = LocalPlayer.Character
         if not char then return end
         for _, p in ipairs(char:GetDescendants()) do
-            if p:IsA("BasePart") and p.CanCollide then
-                p.CanCollide = false
-            end
+            if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end
         end
     end)
 end
 
--- ============ GUI CALLBACKS ============
-makeToggle("ESP", Config.ESP, function(state)
-    Config.ESP = state
-    if state then
+-- ============ AUTO SKILL CHECK ============
+-- Логика: ищем GUI с крутящимся элементом или текстом "skill".
+-- Если нашли — жмём Space + кликаем в центр экрана + пробуем ремоуты skill/perk.
+local skillRemotes = {}
+for _, obj in ipairs(game:GetDescendants()) do
+    if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+        local n = obj.Name:lower()
+        if n:find("skill") or n:find("check") or n:find("hit") or n:find("perk") then
+            table.insert(skillRemotes, obj)
+        end
+    end
+end
+
+local function isSkillGuiActive()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return false end
+    for _, d in ipairs(pg:GetDescendants()) do
+        if d:IsA("GuiObject") and d.Visible then
+            local n = d.Name:lower()
+            if n:find("skill") or n:find("check") or n:find("qte") or n:find("minigame") then
+                return true, d
+            end
+        end
+    end
+    return false
+end
+
+task.spawn(function()
+    while task.wait(0.03) do
+        if not Config.AutoSkill then continue end
+
+        local active, gui = isSkillGuiActive()
+        if active then
+            -- 1) Пробуем нажать пробел
+            pcall(function()
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                task.wait(0.02)
+                vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            end)
+
+            -- 2) Если есть крутящаяся стрелка/маркер — вычислим её зону и кликнем
+            pcall(function()
+                if gui then
+                    for _, c in ipairs(gui:GetDescendants()) do
+                        if c:IsA("ImageLabel") or c:IsA("Frame") then
+                            -- клик в центр этого элемента
+                            local pos = c.AbsolutePosition + c.AbsoluteSize / 2
+                            local vim = game:GetService("VirtualInputManager")
+                            vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
+                            task.wait(0.01)
+                            vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+                        end
+                    end
+                end
+            end)
+
+            -- 3) Фаерим все найденные skill-ремоуты
+            for _, r in ipairs(skillRemotes) do
+                pcall(function()
+                    if r:IsA("RemoteEvent") then
+                        r:FireServer(true)
+                        r:FireServer()
+                    else
+                        r:InvokeServer(true)
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-- ============ BUILD MENU ============
+local refreshESP   = makeToggle("ESP",          Keybinds.ESP,          function() return Config.ESP end,          function(v)
+    Config.ESP = v
+    if v then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character then buildESP(plr) end
         end
@@ -325,37 +507,61 @@ makeToggle("ESP", Config.ESP, function(state)
     end
 end)
 
-makeToggle("Infinite Heal", Config.InfiniteHeal, function(state)
-    Config.InfiniteHeal = state
+local refreshHeal  = makeToggle("Infinite Heal",Keybinds.InfiniteHeal,  function() return Config.InfiniteHeal end, function(v) Config.InfiniteHeal = v end)
+
+local refreshFly   = makeToggle("Fly",          Keybinds.Fly,          function() return Config.Fly end,          function(v)
+    Config.Fly = v
+    if v then startFly() else stopFly() end
 end)
 
-makeToggle("Fly (F)", Config.Fly, function(state)
-    Config.Fly = state
-    if state then startFly() else stopFly() end
+local refreshNoclip= makeToggle("Noclip",       Keybinds.Noclip,       function() return Config.Noclip end,       function(v)
+    Config.Noclip = v
+    if v then startNoclip() else stopNoclip() end
 end)
 
-makeToggle("Noclip (N)", Config.Noclip, function(state)
-    Config.Noclip = state
-    if state then startNoclip() else stopNoclip() end
-end)
+local refreshSkill = makeToggle("Auto Skill Check", Keybinds.AutoSkill, function() return Config.AutoSkill end, function(v) Config.AutoSkill = v end)
 
--- ============ HOTKEYS ============
+-- ============ HOTKEY HANDLER ============
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
-    if input.KeyCode == Enum.KeyCode.F then
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+    local k = input.KeyCode
+
+    if k == Keybinds.Fly then
         Config.Fly = not Config.Fly
         if Config.Fly then startFly() else stopFly() end
-    elseif input.KeyCode == Enum.KeyCode.N then
+        refreshFly()
+    elseif k == Keybinds.Noclip then
         Config.Noclip = not Config.Noclip
         if Config.Noclip then startNoclip() else stopNoclip() end
+        refreshNoclip()
+    elseif k == Keybinds.InfiniteHeal then
+        Config.InfiniteHeal = not Config.InfiniteHeal
+        refreshHeal()
+    elseif k == Keybinds.AutoSkill then
+        Config.AutoSkill = not Config.AutoSkill
+        refreshSkill()
+    elseif k == Keybinds.ESP then
+        Config.ESP = not Config.ESP
+        if Config.ESP then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Character then buildESP(plr) end
+            end
+        else
+            for plr, _ in pairs(ESPData) do destroyESP(plr) end
+        end
+        refreshESP()
+    elseif k == Keybinds.ToggleMenu then
+        Main.Visible = not Main.Visible
     end
 end)
 
--- ============ RESPAWN HANDLING ============
+-- ============ RESPAWN ============
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
     if Config.Fly then startFly() end
     if Config.Noclip then startNoclip() end
 end)
 
-print("[VD Hub] Loaded. F = Fly, N = Noclip")
+print("[VD Hub v2] Loaded. RightShift = toggle menu. Кликни по кнопке клавиши (например 'F') и потом нажми нужную клавишу для ребинда.")
