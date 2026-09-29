@@ -1,6 +1,6 @@
 -- ============================================
--- VIOLENCE DISTRICT | AIMBOT + ESP | ALPHA v0.3
--- Single file edition — ESP с полной кастомизацией
+-- VIOLENCE DISTRICT | AIMBOT + ESP | ALPHA v0.4
+-- Адаптировано под реальные механики игры
 -- ============================================
 
 -- ============================================
@@ -207,7 +207,7 @@ local HeaderTitle = Instance.new("TextLabel")
 HeaderTitle.Size = UDim2.new(1, -150, 1, 0)
 HeaderTitle.Position = UDim2.new(0, 20, 0, 0)
 HeaderTitle.BackgroundTransparency = 1
-HeaderTitle.Text = "🔪  VIOLENCE DISTRICT  •  ALPHA v0.3"
+HeaderTitle.Text = "🔪  VIOLENCE DISTRICT  •  ALPHA v0.4"
 HeaderTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
 HeaderTitle.TextSize = 20
 HeaderTitle.Font = Enum.Font.GothamBold
@@ -646,7 +646,6 @@ local function CreateESPEntry(parent, title, configPrefix, initialColor)
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Parent = Container
 
-    -- Превью цвета
     local Preview = Instance.new("Frame")
     Preview.Size = UDim2.new(0, 18, 0, 18)
     Preview.Position = UDim2.new(1, -160, 0, 14)
@@ -664,7 +663,6 @@ local function CreateESPEntry(parent, title, configPrefix, initialColor)
     PrevStroke.Transparency = 0.5
     PrevStroke.Parent = Preview
 
-    -- Стрелка
     local ArrowBtn = Instance.new("TextButton")
     ArrowBtn.Size = UDim2.new(0, 28, 0, 28)
     ArrowBtn.Position = UDim2.new(1, -122, 0, 9)
@@ -680,7 +678,6 @@ local function CreateESPEntry(parent, title, configPrefix, initialColor)
     ArrowCorner.CornerRadius = UDim.new(0, 5)
     ArrowCorner.Parent = ArrowBtn
 
-    -- Главный тумблер
     local ToggleBtn = Instance.new("TextButton")
     ToggleBtn.Size = UDim2.new(0, 48, 0, 24)
     ToggleBtn.Position = UDim2.new(1, -62, 0.5, -12)
@@ -716,7 +713,6 @@ local function CreateESPEntry(parent, title, configPrefix, initialColor)
         }):Play()
     end))
 
-    -- Содержимое
     local ContentFrame = Instance.new("Frame")
     ContentFrame.Size = UDim2.new(1, -24, 0, EXPANDED_H - COLLAPSED_H - 10)
     ContentFrame.Position = UDim2.new(0, 12, 0, COLLAPSED_H + 5)
@@ -732,7 +728,6 @@ local function CreateESPEntry(parent, title, configPrefix, initialColor)
     CreateSubToggle(ContentFrame, "📏  Показывать дистанцию", Config[keyDistance], function(v) Config[keyDistance] = v end)
     CreateSubSlider(ContentFrame, "Макс. дистанция (м)", 50, 5000, Config[keyMaxDist], function(v) Config[keyMaxDist] = v end)
 
-    -- RGB-пикер
     local ColorFrame = Instance.new("Frame")
     ColorFrame.Size = UDim2.new(1, 0, 0, 148)
     ColorFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
@@ -1115,18 +1110,48 @@ end))
 local espCache = {}
 genv.VD_ALPHA_LOADED.espCache = espCache
 
-local function getTeamType(player)
+-- Вспомогательная функция для поиска значения роли в разных местах
+local function getRole(player)
+    -- 1. Проверка стандартного Team
     if player.Team then
         local teamName = player.Team.Name:lower()
-        if teamName:find("killer") or teamName:find("убийца") or teamName:find("slasher") then
-            return "Killer"
-        elseif teamName:find("survivor") or teamName:find("выжив") or teamName:find("runner") then
-            return "Survivor"
+        if teamName:find("killer") or teamName:find("убийца") or teamName:find("slasher") then return "Killer" end
+        if teamName:find("survivor") or teamName:find("выжив") or teamName:find("runner") then return "Survivor" end
+    end
+
+    -- 2. Проверка атрибутов игрока
+    local roleAttr = player:GetAttribute("Role") or player:GetAttribute("Team")
+    if roleAttr then
+        local r = tostring(roleAttr):lower()
+        if r:find("killer") then return "Killer" end
+        if r:find("survivor") then return "Survivor" end
+    end
+
+    -- 3. Проверка leaderstats
+    local ls = player:FindFirstChild("leaderstats")
+    if ls then
+        local roleStat = ls:FindFirstChild("Role") or ls:FindFirstChild("Team")
+        if roleStat then
+            local r = tostring(roleStat.Value):lower()
+            if r:find("killer") then return "Killer" end
+            if r:find("survivor") then return "Survivor" end
         end
     end
+
+    -- 4. Проверка по имени персонажа
+    local char = player.Character
+    if char then
+        local charName = char.Name:lower()
+        if charName:find("killer") then return "Killer" end
+        if charName:find("survivor") then return "Survivor" end
+    end
+
+    -- 5. Проверка по имени игрока (крайний случай)
     local name = player.Name:lower()
     if name:find("killer") then return "Killer" end
     if name:find("survivor") then return "Survivor" end
+
+    -- По умолчанию — выживший
     return "Survivor"
 end
 
@@ -1134,7 +1159,7 @@ local function createESP(player)
     local character = player.Character
     if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 
-    local teamType = getTeamType(player)
+    local teamType = getRole(player)
     local isKiller = (teamType == "Killer")
     local color = isKiller and Config.ESP_KillerColor or Config.ESP_SurvivorColor
 
@@ -1230,7 +1255,7 @@ track(RunService.RenderStepped:Connect(function()
             local hum = character and character:FindFirstChildOfClass("Humanoid")
 
             if character and hum and hum.Health > 0 then
-                local currentTeam = getTeamType(player)
+                local currentTeam = getRole(player)
                 if currentTeam ~= data.team then
                     data.team = currentTeam
                 end
@@ -1343,4 +1368,4 @@ CategoryButtons["Aimbot"].setActive(true)
 CurrentCategory = "Aimbot"
 PageAimbot.Visible = true
 
-print("[VD Alpha v0.3] Скрипт загружен. L — меню, ПКМ — аимбот. Соединений: " .. tostring(#ActiveConnections))
+print("[VD Alpha v0.4] Скрипт загружен. L — меню, ПКМ — аимбот. Соединений: " .. tostring(#ActiveConnections))
